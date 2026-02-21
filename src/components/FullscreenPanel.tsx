@@ -4,14 +4,14 @@ import type { Message } from '@/lib/types';
 
 interface FullscreenPanelProps {
   title: string;
+  sessionTitle?: string;
+  speakerName?: string;
   messages: Message[];
   onClose: () => void;
   children: React.ReactNode;
 }
 
-export default function FullscreenPanel({ title, messages, onClose, children }: FullscreenPanelProps) {
-  // Featured = messages with the most reactions (approximated by reply mentions)
-  // For now, feature the most recent messages that got replied to
+export default function FullscreenPanel({ title, sessionTitle, speakerName, messages, onClose, children }: FullscreenPanelProps) {
   const repliedToNames = new Set<string>();
   messages.forEach((m) => {
     if (m.content.startsWith('@')) {
@@ -27,8 +27,19 @@ export default function FullscreenPanel({ title, messages, onClose, children }: 
   return (
     <div className="fixed inset-0 z-40 bg-lp-bg/95 backdrop-blur-sm flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-lp-border">
-        <h2 className="text-lg font-bold">{title}</h2>
+      <div className="flex items-center justify-between px-6 py-3 border-b border-lp-border">
+        <div className="flex items-center gap-4">
+          {(sessionTitle || speakerName) && (
+            <div className="flex items-center gap-2 pr-4 border-r border-lp-border">
+              <div className="w-7 h-7 rounded-md bg-gradient-to-br from-lp-accent to-lp-pink flex items-center justify-center text-sm">⚡</div>
+              <div>
+                {sessionTitle && <p className="text-sm font-bold text-lp-text">{sessionTitle}</p>}
+                {speakerName && <p className="text-xs text-lp-muted">{speakerName}</p>}
+              </div>
+            </div>
+          )}
+          <h2 className="text-lg font-bold">{title}</h2>
+        </div>
         <button
           onClick={onClose}
           className="px-4 py-2 text-sm text-lp-muted hover:text-lp-text bg-lp-surface rounded-lg border border-lp-border transition-colors"

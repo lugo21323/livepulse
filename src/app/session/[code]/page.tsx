@@ -52,15 +52,17 @@ export default function AudienceSessionPage() {
 
   const [activeView, setActiveView] = useState<ActiveView>('chat');
   const [pollQuestion, setPollQuestion] = useState('');
+  const [pollDismissed, setPollDismissed] = useState(false);
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [submittingRating, setSubmittingRating] = useState(false);
 
   const supabase = useRef(createSupabaseBrowser()).current;
 
-  // Fetch poll question
+  // Fetch poll question & reset dismiss when new poll arrives
   useEffect(() => {
     if (!activePoll) { setPollQuestion(''); return; }
+    setPollDismissed(false);
     supabase.from('polls').select('question').eq('id', activePoll).single()
       .then(({ data }) => { if (data) setPollQuestion((data as any).question); });
   }, [activePoll, supabase]);
@@ -154,9 +156,16 @@ export default function AudienceSessionPage() {
         </div>
       </div>
 
-      {/* Active poll / pulse check */}
-      {activePoll && pollQuestion && (
-        <div className="px-4 pt-3">
+      {/* Active poll / pulse check - dismissable */}
+      {activePoll && pollQuestion && !pollDismissed && (
+        <div className="px-4 pt-3 relative">
+          <button
+            onClick={() => setPollDismissed(true)}
+            className="absolute top-4 right-5 z-10 w-6 h-6 flex items-center justify-center rounded-full bg-lp-bg/80 text-lp-muted hover:text-lp-text hover:bg-lp-bg text-xs font-bold transition-colors"
+            title="Dismiss (available in Poll tab)"
+          >
+            ✕
+          </button>
           {isPulse ? (
             <PulseCheck sessionId={session.id} />
           ) : (

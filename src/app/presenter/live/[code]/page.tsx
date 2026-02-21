@@ -228,7 +228,7 @@ export default function PresenterLivePage() {
 
       {/* Fullscreen panel */}
       {fullscreenTab && (
-        <FullscreenPanel title={fullscreenLabel} messages={fullscreenTab === 'chat' ? chatMessages : messages} onClose={() => setFullscreenTab(null)}>
+        <FullscreenPanel title={fullscreenLabel} sessionTitle={session.title} speakerName={session.speaker_name} messages={fullscreenTab === 'chat' ? chatMessages : messages} onClose={() => setFullscreenTab(null)}>
           {fullscreenTab === 'chat' && <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn />}
           {fullscreenTab === 'qa' && <QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
           {fullscreenTab === 'polls' && activePoll && (
@@ -353,8 +353,8 @@ export default function PresenterLivePage() {
                       <span className="text-xs font-bold text-lp-green uppercase tracking-wider">Live</span>
                     </div>
                     <PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults />
-                    <button onClick={closePoll} className="w-full py-2 text-sm font-semibold text-lp-orange hover:text-lp-orange/80 transition-colors">
-                      Pause Poll
+                    <button onClick={closePoll} className="w-full py-2 text-sm font-semibold text-red-400 hover:text-red-300 transition-colors">
+                      Close Poll
                     </button>
                   </div>
                 )}
@@ -366,7 +366,7 @@ export default function PresenterLivePage() {
                       {closedPolls.map((cp) => (
                         <div key={cp.id}>
                           <PollWidget pollId={cp.id} question={cp.question} options={cp.options} showLiveResults isClosed />
-                          <button onClick={() => reopenPoll(cp.id)} className="w-full mt-1 py-2 text-sm font-semibold text-lp-green hover:text-lp-green/80 transition-colors">
+                          <button onClick={() => reopenPoll(cp.id)} className="w-full mt-1 py-2 text-sm font-semibold text-lp-green hover:text-lp-green/70 transition-colors">
                             Open Poll
                           </button>
                         </div>
@@ -388,7 +388,7 @@ export default function PresenterLivePage() {
           <SidebarQR sessionCode={session.session_code} />
           <button
             onClick={() => setShowEndConfirm(true)}
-            className="absolute bottom-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-xs text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-colors z-10"
+            className="absolute bottom-3 right-3 w-9 h-9 flex items-center justify-center rounded-lg bg-red-500/10 border border-red-500/20 text-sm font-bold text-red-400/60 hover:text-red-400 hover:bg-red-500/20 hover:border-red-500/40 transition-colors z-10"
             title="End session"
           >
             ✕

@@ -179,12 +179,13 @@ export default function CreateSessionPage() {
 
             <div>
               <label className="block text-sm font-medium text-lp-muted mb-1.5">Headshot URL</label>
-              <div className="flex gap-3 items-center">
-                <input type="url" value={headshotUrl} onChange={(e) => setHeadshotUrl(e.target.value)} placeholder="https://your-photo.jpg (use LinkedIn, website, etc.)" className={`flex-1 ${inputClass}`} />
-                {headshotUrl && (
-                  <img src={headshotUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-lp-border shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                )}
-              </div>
+              <input type="url" value={headshotUrl} onChange={(e) => setHeadshotUrl(e.target.value)} placeholder="https://your-photo.jpg (use LinkedIn, website, etc.)" className={inputClass} />
+              {headshotUrl && (
+                <div className="mt-3 flex items-center gap-3">
+                  <img src={headshotUrl} alt="Headshot preview" className="w-16 h-16 rounded-full object-cover border-2 border-lp-accent/30" onError={(e) => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).alt = 'Failed to load'; }} />
+                  <span className="text-xs text-lp-green font-medium">✓ Preview</span>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">

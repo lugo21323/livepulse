@@ -135,15 +135,22 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
 
   return (
     <div className="flex flex-col h-full">
-      <div className={`flex-1 overflow-y-auto p-3 ${twoColumn ? 'columns-2 gap-3 space-y-0' : 'space-y-2'}`}>
+      <div className={`flex-1 overflow-y-auto p-3 ${twoColumn ? '' : 'space-y-2'}`}>
         {messages.length === 0 && (
           <p className="text-center text-lp-muted text-sm py-8">No messages yet. Say hi!</p>
         )}
-        {messages.map((msg) => (
-          <div key={msg.id} className={twoColumn ? 'break-inside-avoid mb-2' : ''}>
-            {renderMessage(msg)}
+        {twoColumn ? (
+          <div className="flex gap-3">
+            <div className="flex-1 space-y-2">
+              {messages.slice(0, Math.ceil(messages.length / 2)).map((msg) => renderMessage(msg))}
+            </div>
+            <div className="flex-1 space-y-2">
+              {messages.slice(Math.ceil(messages.length / 2)).map((msg) => renderMessage(msg))}
+            </div>
           </div>
-        ))}
+        ) : (
+          messages.map((msg) => renderMessage(msg))
+        )}
         <div ref={bottomRef} />
       </div>
 
