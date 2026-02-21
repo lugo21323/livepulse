@@ -56,6 +56,9 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   const supabase = useRef(createSupabaseBrowser()).current;
   const lockedToBottom = useRef(true); // start locked
   const channelRef = useRef<any>(null);
+  // Keep a stable ref to the callback so channel doesn't tear down on re-renders
+  const onMsgReactionRef = useRef(onMsgReaction);
+  onMsgReactionRef.current = onMsgReaction;
 
   // Subscribe to broadcast channel for cross-client emoji reactions
   useEffect(() => {
@@ -68,10 +71,10 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
             const msgReactions = { ...(prev[messageId] || {}) };
             msgReactions[emoji] = (msgReactions[emoji] || 0) + 1;
             const updated = { ...prev, [messageId]: msgReactions };
-            if (onMsgReaction) {
+            if (onMsgReactionRef.current) {
               const emojiMap = updated[messageId] || {};
               const total = Object.values(emojiMap).reduce((s, c) => s + c, 0);
-              onMsgReaction(messageId, total, { ...emojiMap });
+              onMsgReactionRef.current(messageId, total, { ...emojiMap });
             }
             return updated;
           });
@@ -80,7 +83,7 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
       .subscribe();
     channelRef.current = channel;
     return () => { supabase.removeChannel(channel); };
-  }, [sessionId, supabase, onMsgReaction]);
+  }, [sessionId, supabase]);
 
   // Auto-scroll when new messages arrive IF locked to bottom
   useEffect(() => {

@@ -5,14 +5,16 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 interface ScreenCaptureProps {
   className?: string;
   onStop?: () => void;
+  autoStart?: boolean;
 }
 
-export default function ScreenCapture({ className = '', onStop }: ScreenCaptureProps) {
+export default function ScreenCapture({ className = '', onStop, autoStart = false }: ScreenCaptureProps) {
   const [capturing, setCapturing] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const didAutoStart = useRef(false);
 
   // Wire stream to video element after it mounts
   useEffect(() => {
@@ -34,10 +36,14 @@ export default function ScreenCapture({ className = '', onStop }: ScreenCaptureP
 
       setCapturing(true);
     } catch (err: any) {
-      if (err.name === 'NotAllowedError') return;
+      if (err.name === 'NotAllowedError') {
+        // User cancelled the picker — notify parent so toggle resets
+        onStop?.();
+        return;
+      }
       setError('Screen sharing failed. Make sure you\'re using a supported browser.');
     }
-  }, []);
+  }, [onStop]);
 
   const doStop = useCallback(() => {
     if (streamRef.current) {
@@ -51,6 +57,14 @@ export default function ScreenCapture({ className = '', onStop }: ScreenCaptureP
     setShowStopConfirm(false);
     onStop?.();
   }, [onStop]);
+
+  // Auto-start capture when autoStart prop is true (e.g. sidebar toggle)
+  useEffect(() => {
+    if (autoStart && !didAutoStart.current && !capturing) {
+      didAutoStart.current = true;
+      startCapture();
+    }
+  }, [autoStart, capturing, startCapture]);
 
   // Cleanup on unmount
   useEffect(() => {

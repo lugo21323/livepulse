@@ -384,7 +384,7 @@ export default function PresenterLivePage() {
       {/* Main area - Slides / Screen Share */}
       <div className="flex-1 flex flex-col min-w-0 relative">
         {screenShare ? (
-          <ScreenCapture className="flex-1" onStop={() => setScreenShare(false)} />
+          <ScreenCapture className="flex-1" onStop={() => setScreenShare(false)} autoStart />
         ) : session.slide_url ? (
           <SlideEmbed ref={slideRef} url={session.slide_url} className="flex-1" />
         ) : (
