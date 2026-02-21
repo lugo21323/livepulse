@@ -122,21 +122,21 @@ export default function FullscreenPanel({
         {/* Left: Tab content */}
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {/* Sub-header with view toggle for chat */}
-          <div className="px-4 py-2 border-b border-lp-border shrink-0 flex items-center justify-between">
+          <div className="px-4 py-2.5 border-b border-lp-border shrink-0 flex items-center justify-between bg-lp-bg/30">
             {activeTab === 'chat' ? (
-              <div className="flex gap-1">
+              <div className="flex gap-1 bg-lp-bg/60 rounded-lg p-1">
                 <button
                   onClick={() => setChatSubView('all')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                    chatSubView === 'all' ? 'bg-lp-surface text-lp-text' : 'text-lp-muted hover:text-lp-text'
+                  className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                    chatSubView === 'all' ? 'bg-lp-surface text-lp-text shadow-sm' : 'text-lp-muted hover:text-lp-text'
                   }`}
                 >
                   All Messages
                 </button>
                 <button
                   onClick={() => setChatSubView('featured')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                    chatSubView === 'featured' ? 'bg-lp-surface text-lp-text' : 'text-lp-muted hover:text-lp-text'
+                  className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                    chatSubView === 'featured' ? 'bg-lp-surface text-lp-text shadow-sm' : 'text-lp-muted hover:text-lp-text'
                   }`}
                 >
                   ⭐ Featured

@@ -15,6 +15,9 @@ interface ChatPanelProps {
   isPresenter?: boolean;
   archivedIds?: Set<string>;
   onArchive?: (id: string) => void;
+  starredIds?: Set<string>;
+  onStar?: (id: string) => void;
+  onMsgReaction?: (id: string, totalCount: number) => void;
 }
 
 interface MessageReactions {
@@ -26,7 +29,7 @@ interface ThreadedMessage {
   replies: Message[];
 }
 
-export default function ChatPanel({ messages, sessionId, authorName, compact = false, twoColumn = false, isPresenter = false, archivedIds, onArchive }: ChatPanelProps) {
+export default function ChatPanel({ messages, sessionId, authorName, compact = false, twoColumn = false, isPresenter = false, archivedIds, onArchive, starredIds, onStar, onMsgReaction }: ChatPanelProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [replyToId, setReplyToId] = useState<string | null>(null);
@@ -51,16 +54,13 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   const threaded = useMemo(() => {
     const result: ThreadedMessage[] = [];
     const replyIds = new Set<string>();
-
-    // First pass: identify replies and map them to parents
-    const replyMap = new Map<string, Message[]>(); // parentId -> replies
+    const replyMap = new Map<string, Message[]>();
 
     for (const msg of messages) {
       if (msg.content.startsWith('@')) {
         const nameMatch = msg.content.match(/^@([^:]+):/);
         if (nameMatch) {
           const targetName = nameMatch[1];
-          // Find the most recent non-reply message from this author before this reply
           let parentId: string | null = null;
           for (let i = messages.indexOf(msg) - 1; i >= 0; i--) {
             if (messages[i].author_name === targetName && !messages[i].content.startsWith('@')) {
@@ -77,19 +77,14 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
       }
     }
 
-    // Second pass: build threaded list
     for (const msg of messages) {
-      if (replyIds.has(msg.id)) continue; // Skip replies - they render under parent
-      result.push({
-        msg,
-        replies: replyMap.get(msg.id) || [],
-      });
+      if (replyIds.has(msg.id)) continue;
+      result.push({ msg, replies: replyMap.get(msg.id) || [] });
     }
 
     return result;
   }, [messages]);
 
-  // Filter out archived messages
   const visibleThreaded = archivedIds
     ? threaded.filter((t) => !archivedIds.has(t.msg.id))
     : threaded;
@@ -98,7 +93,6 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
     e.preventDefault();
     const content = text.trim();
     if (!content || sending) return;
-
     setSending(true);
     setText('');
     await supabase.from('messages').insert({
@@ -113,7 +107,6 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   async function sendReply(msg: Message) {
     const content = replyText.trim();
     if (!content || sending) return;
-
     const fullContent = `@${msg.author_name}: ${content}`;
     setSending(true);
     setReplyText('');
@@ -131,7 +124,13 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
     setLocalReactions((prev) => {
       const msgReactions = { ...(prev[messageId] || {}) };
       msgReactions[emoji] = (msgReactions[emoji] || 0) + 1;
-      return { ...prev, [messageId]: msgReactions };
+      const updated = { ...prev, [messageId]: msgReactions };
+      // Report total count to parent
+      if (onMsgReaction) {
+        const total = Object.values(updated[messageId] || {}).reduce((s, c) => s + c, 0);
+        onMsgReaction(messageId, total);
+      }
+      return updated;
     });
     setShowReactionsFor(null);
   }
@@ -158,14 +157,14 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
     const hasReactions = Object.keys(reactions).length > 0;
     const isReplying = replyToId === msg.id;
     const isReply = msg.content.startsWith('@');
+    const isStarred = starredIds?.has(msg.id);
 
-    // If this is a reply that didn't match a parent (orphan), show it normally
     const displayContent = isReply ? msg.content.replace(/^@[^:]+:\s*/, '') : msg.content;
     const replyTarget = isReply ? msg.content.match(/^@([^:]+):/)?.[1] : null;
 
     return (
       <div key={msg.id} className="animate-slide-in group">
-        <div className={`rounded-lg px-3 py-2 relative ${compact ? 'bg-lp-bg' : 'bg-lp-surface-light'}`}>
+        <div className={`rounded-lg px-3 py-2 relative ${compact ? 'bg-lp-bg' : 'bg-lp-surface-light'} ${isStarred ? 'ring-1 ring-lp-yellow/30' : ''}`}>
           {replyTarget && (
             <div className="text-[10px] text-lp-muted mb-0.5 flex items-center gap-1">
               <span>↩</span> replying to {replyTarget}
@@ -177,17 +176,26 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
               <p className="text-sm text-lp-text mt-0.5">{displayContent}</p>
             </div>
             {/* Action buttons */}
-            <div className="flex gap-1 shrink-0 mt-0.5">
+            <div className="flex gap-0.5 shrink-0 mt-0.5">
+              {isPresenter && onStar && (
+                <button
+                  onClick={() => onStar(msg.id)}
+                  className={`text-sm p-1 rounded hover:bg-lp-bg/50 transition-all ${isStarred ? 'text-lp-yellow' : 'text-lp-muted/40 hover:text-lp-yellow'}`}
+                  title={isStarred ? 'Unstar' : 'Star (feature)'}
+                >
+                  ⭐
+                </button>
+              )}
               <button
                 onClick={() => setShowReactionsFor(showReactionsFor === msg.id ? null : msg.id)}
-                className="text-sm text-lp-muted/50 hover:text-lp-text p-1 rounded hover:bg-lp-bg/50 transition-all"
+                className="text-sm text-lp-muted/40 hover:text-lp-text p-1 rounded hover:bg-lp-bg/50 transition-all"
                 title="React"
               >
                 😊
               </button>
               <button
                 onClick={() => { setReplyToId(isReplying ? null : msg.id); setReplyText(''); }}
-                className={`text-sm p-1 rounded hover:bg-lp-bg/50 transition-all ${isReplying ? 'text-lp-accent' : 'text-lp-muted/50 hover:text-lp-text'}`}
+                className={`text-sm p-1 rounded hover:bg-lp-bg/50 transition-all ${isReplying ? 'text-lp-accent' : 'text-lp-muted/40 hover:text-lp-text'}`}
                 title="Reply"
               >
                 ↩
@@ -195,7 +203,7 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
               {isPresenter && onArchive && (
                 <button
                   onClick={() => onArchive(msg.id)}
-                  className="text-sm text-lp-muted/50 hover:text-red-400 p-1 rounded hover:bg-lp-bg/50 transition-all"
+                  className="text-sm text-lp-muted/40 hover:text-red-400 p-1 rounded hover:bg-lp-bg/50 transition-all"
                   title="Archive message"
                 >
                   ✕
@@ -232,7 +240,7 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
           )}
         </div>
 
-        {/* Inline replies shown below parent */}
+        {/* Inline replies */}
         {replies.map((reply) => renderReply(reply))}
 
         {/* Inline reply input */}

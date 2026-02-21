@@ -88,6 +88,10 @@ export function useRealtimeReactions(sessionId: string) {
             );
           } else if (payload.eventType === 'INSERT') {
             setReactions((prev) => [...prev, payload.new as Reaction]);
+          } else if (payload.eventType === 'DELETE') {
+            setReactions((prev) =>
+              prev.filter((r) => r.id !== (payload.old as Reaction).id)
+            );
           }
         }
       )

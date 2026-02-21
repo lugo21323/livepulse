@@ -54,6 +54,8 @@ export default function PresenterLivePage() {
   const [showArchived, setShowArchived] = useState(false);
   const [fullscreenQR, setFullscreenQR] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
+  const [msgReactionCounts, setMsgReactionCounts] = useState<Record<string, number>>({});
   const pollsContainerRef = useRef<HTMLDivElement>(null);
 
   const [lastSeenChat, setLastSeenChat] = useState(0);
@@ -180,7 +182,8 @@ export default function PresenterLivePage() {
 
   async function resetReactions() {
     if (!session) return;
-    await supabase.from('reactions').delete().eq('session_id', session.id);
+    // Update counts to 0 — triggers UPDATE events the realtime hook already handles
+    await supabase.from('reactions').update({ count: 0 }).eq('session_id', session.id);
     setShowResetConfirm(false);
   }
 
@@ -188,6 +191,19 @@ export default function PresenterLivePage() {
     const sizes: SidebarWidth[] = ['1/4', '1/3', '1/2'];
     const idx = sizes.indexOf(sidebarWidth);
     setSidebarWidth(sizes[(idx + 1) % sizes.length]);
+  }
+
+  function toggleStar(id: string) {
+    setStarredIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function trackMsgReaction(id: string, count: number) {
+    setMsgReactionCounts((prev) => ({ ...prev, [id]: count }));
   }
 
   function archiveMessage(id: string) {
@@ -304,25 +320,31 @@ export default function PresenterLivePage() {
           sessionCode={session.session_code}
           messages={messages}
           onClose={() => setFullscreenTab(null)}
-          chatContent={<ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn isPresenter archivedIds={showArchived ? undefined : archivedIds} onArchive={archiveMessage} />}
+          chatContent={<ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn isPresenter archivedIds={showArchived ? undefined : archivedIds} onArchive={archiveMessage} starredIds={starredIds} onStar={toggleStar} onMsgReaction={trackMsgReaction} />}
           featuredContent={(() => {
-            const repliedToNames = new Set<string>();
-            chatMessages.forEach((m) => {
-              if (m.content.startsWith('@')) {
-                const nm = m.content.match(/^@([^:]+):/);
-                if (nm) repliedToNames.add(nm[1]);
-              }
-            });
-            const feat = chatMessages.filter((m) => repliedToNames.has(m.author_name) && !m.content.startsWith('@')).slice(-30);
+            // Starred messages (manual)
+            const starred = chatMessages.filter((m) => starredIds.has(m.id));
+            // Top 5 by message-level emoji reactions
+            const topReacted = [...chatMessages]
+              .filter((m) => (msgReactionCounts[m.id] || 0) > 0 && !starredIds.has(m.id))
+              .sort((a, b) => (msgReactionCounts[b.id] || 0) - (msgReactionCounts[a.id] || 0))
+              .slice(0, 5);
+            const feat = [...starred, ...topReacted];
             return (
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
                 {feat.length === 0 ? (
-                  <p className="text-center text-lp-muted text-sm py-16">Comments that get replies will appear here as featured</p>
+                  <p className="text-center text-lp-muted text-sm py-16">Star messages with ⭐ or react with emojis to feature them here</p>
                 ) : (
                   feat.map((msg) => (
                     <div key={msg.id} className="bg-lp-surface rounded-xl p-4 border border-lp-border animate-slide-in">
-                      <span className="text-xs font-medium text-lp-accent">{msg.author_name}</span>
-                      <p className="text-base text-lp-text mt-1">{msg.content}</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-lp-accent">{msg.author_name}</span>
+                        {starredIds.has(msg.id) && <span className="text-xs text-lp-yellow">⭐ Starred</span>}
+                        {!starredIds.has(msg.id) && msgReactionCounts[msg.id] && (
+                          <span className="text-xs text-lp-muted">{msgReactionCounts[msg.id]} reactions</span>
+                        )}
+                      </div>
+                      <p className="text-base text-lp-text">{msg.content}</p>
                     </div>
                   ))
                 )}
@@ -457,7 +479,7 @@ export default function PresenterLivePage() {
                 </div>
               )}
               <div className="flex-1 overflow-hidden">
-                <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn={isWide} isPresenter archivedIds={showArchived ? undefined : archivedIds} onArchive={archiveMessage} />
+                <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn={isWide} isPresenter archivedIds={showArchived ? undefined : archivedIds} onArchive={archiveMessage} starredIds={starredIds} onStar={toggleStar} onMsgReaction={trackMsgReaction} />
               </div>
             </div>
           )}
