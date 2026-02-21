@@ -139,3 +139,60 @@ body {
   font-size: 0.8125rem;
   font-weight: 500;
 }
+
+/* Print / PDF styles for session report */
+@media print {
+  body {
+    background: white !important;
+    color: #1a1a1a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+
+  .report-content {
+    max-width: 100% !important;
+    padding: 0 20px !important;
+  }
+
+  .print-title {
+    color: #1a1a1a !important;
+  }
+
+  .print-heading {
+    color: #1a1a1a !important;
+  }
+
+  .print-card {
+    background: #f8f8fa !important;
+    border-color: #ddd !important;
+    break-inside: avoid;
+  }
+
+  .print-border {
+    border-color: #ddd !important;
+  }
+
+  .print-bar-bg {
+    background: #e8e8ec !important;
+  }
+
+  .print-logo {
+    background: #6c5ce7 !important;
+  }
+
+  .print-chat-row {
+    break-inside: avoid;
+  }
+
+  /* Override dark theme colors for print */
+  .text-lp-text { color: #1a1a1a !important; }
+  .text-lp-muted { color: #666 !important; }
+  .text-lp-accent { color: #6c5ce7 !important; }
+  .bg-lp-surface { background: #f8f8fa !important; }
+  .bg-lp-bg { background: white !important; }
+  .border-lp-border { border-color: #ddd !important; }
+}

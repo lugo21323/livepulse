@@ -17,6 +17,7 @@ import FullscreenPanel from '@/components/FullscreenPanel';
 import FloatingReactions from '@/components/FloatingReactions';
 import SessionSettingsModal from '@/components/SessionSettingsModal';
 import ResourceEditor from '@/components/ResourceEditor';
+import ScreenCapture from '@/components/ScreenCapture';
 import { QRCodeSVG } from 'qrcode.react';
 
 type SidebarTab = 'chat' | 'qa' | 'polls';
@@ -54,6 +55,7 @@ export default function PresenterLivePage() {
   const [showArchived, setShowArchived] = useState(false);
   const [fullscreenQR, setFullscreenQR] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [screenShare, setScreenShare] = useState(false);
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [msgReactionCounts, setMsgReactionCounts] = useState<Record<string, number>>({});
   const [msgReactionEmojis, setMsgReactionEmojis] = useState<Record<string, Record<string, number>>>({});
@@ -376,18 +378,25 @@ export default function PresenterLivePage() {
         />
       )}
 
-      {/* Main area - Slides */}
+      {/* Main area - Slides / Screen Share */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        {session.slide_url ? (
+        {screenShare ? (
+          <ScreenCapture className="flex-1" onStop={() => setScreenShare(false)} />
+        ) : session.slide_url ? (
           <SlideEmbed ref={slideRef} url={session.slide_url} className="flex-1" />
         ) : (
           <div className="flex-1 flex items-center justify-center bg-lp-surface">
             <div className="text-center">
               <p className="text-5xl mb-4">📽️</p>
               <p className="text-lp-muted text-lg font-semibold">No slides attached</p>
-              <button onClick={() => setShowSettings(true)} className="mt-3 px-5 py-2 bg-lp-accent rounded-lg text-sm font-semibold text-white hover:bg-lp-accent/80 transition-colors">
-                + Add Slide URL
-              </button>
+              <div className="flex gap-3 mt-4 justify-center">
+                <button onClick={() => setScreenShare(true)} className="px-5 py-2.5 bg-lp-accent rounded-lg text-sm font-semibold text-white hover:bg-lp-accent/80 transition-colors">
+                  🖥️ Share Screen
+                </button>
+                <button onClick={() => setShowSettings(true)} className="px-5 py-2.5 bg-lp-surface-light rounded-lg text-sm font-semibold text-lp-muted hover:text-lp-text border border-lp-border transition-colors">
+                  + Add Slide URL
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -426,6 +435,13 @@ export default function PresenterLivePage() {
               <span className="text-base font-extrabold text-lp-text">{onlineCount}</span>
               <span className="text-xs text-lp-muted font-medium">online</span>
             </div>
+            <button
+              onClick={() => setScreenShare(!screenShare)}
+              className={`w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors ${screenShare ? 'text-lp-green bg-lp-green/10' : 'text-lp-muted hover:text-lp-accent hover:bg-lp-bg'}`}
+              title={screenShare ? 'Stop screen share' : 'Share screen'}
+            >
+              🖥️
+            </button>
             <button onClick={() => setShowSettings(true)} className="w-8 h-8 flex items-center justify-center rounded-lg text-base text-lp-muted hover:text-lp-accent hover:bg-lp-bg transition-colors" title="Session settings">
               ⚙️
             </button>

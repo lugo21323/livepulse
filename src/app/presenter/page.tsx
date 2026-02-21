@@ -200,16 +200,26 @@ export default function PresenterPage() {
                     )}
                   </p>
                 </div>
-                <button
-                  onClick={() => goLive(session)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    session.is_active
-                      ? 'bg-lp-green/10 text-lp-green hover:bg-lp-green/20'
-                      : 'bg-lp-accent/10 text-lp-accent hover:bg-lp-accent/20'
-                  }`}
-                >
-                  {session.is_active ? 'Open Live View' : 'Go Live'}
-                </button>
+                <div className="flex gap-2">
+                  {!session.is_active && (
+                    <button
+                      onClick={() => router.push(`/presenter/report/${session.session_code}`)}
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-lp-surface-light text-lp-muted hover:text-lp-text border border-lp-border"
+                    >
+                      Report
+                    </button>
+                  )}
+                  <button
+                    onClick={() => goLive(session)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      session.is_active
+                        ? 'bg-lp-green/10 text-lp-green hover:bg-lp-green/20'
+                        : 'bg-lp-accent/10 text-lp-accent hover:bg-lp-accent/20'
+                    }`}
+                  >
+                    {session.is_active ? 'Open Live View' : 'Go Live'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
