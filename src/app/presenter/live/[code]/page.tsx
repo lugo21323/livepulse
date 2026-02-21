@@ -324,10 +324,10 @@ export default function PresenterLivePage() {
             <h3 className="text-lg font-bold mb-2">Stop Screen Share?</h3>
             <p className="text-sm text-lp-muted mb-6">This will end your current screen share. You can start a new one anytime.</p>
             <div className="flex gap-3">
-              <button onClick={() => setShowStopShareConfirm(false)} className="flex-1 py-2.5 text-sm font-semibold rounded-lg border border-lp-border text-lp-muted hover:text-lp-text transition-colors">
+              <button onClick={() => setShowStopShareConfirm(false)} className="flex-1 py-2.5 text-sm font-semibold rounded-lg bg-lp-accent text-white hover:bg-lp-accent/80 transition-colors">
                 Keep Sharing
               </button>
-              <button onClick={() => { setShowStopShareConfirm(false); stopScreenShare(); }} className="flex-1 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors">
+              <button onClick={() => { setShowStopShareConfirm(false); stopScreenShare(); }} className="flex-1 py-2.5 text-sm font-semibold rounded-lg border border-lp-border text-lp-muted hover:text-lp-text transition-colors">
                 Stop
               </button>
             </div>
