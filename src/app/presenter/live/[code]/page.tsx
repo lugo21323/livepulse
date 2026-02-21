@@ -202,9 +202,14 @@ export default function PresenterLivePage() {
         <SessionSettingsModal
           sessionId={session.id}
           currentSlideUrl={session.slide_url || ''}
-          currentContactInfo={(session as any).contact_info || ''}
-          currentResourceUrl={(session as any).resource_url || ''}
           currentTitle={session.title}
+          currentHeadshotUrl={(session as any).headshot_url || ''}
+          currentWebsite={(session as any).contact_website || ''}
+          currentEmail={(session as any).contact_email || ''}
+          currentPhone={(session as any).contact_phone || ''}
+          currentLinkedin={(session as any).contact_linkedin || ''}
+          currentTwitter={(session as any).contact_twitter || ''}
+          currentInstagram={(session as any).contact_instagram || ''}
           onClose={() => setShowSettings(false)}
           onSaved={(updates) => {
             setSession((prev) => prev ? { ...prev, ...updates } as Session : prev);

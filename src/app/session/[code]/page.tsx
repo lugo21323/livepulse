@@ -15,8 +15,16 @@ import QAPanel from '@/components/QAPanel';
 import ReactionBar from '@/components/ReactionBar';
 import PollWidget from '@/components/PollWidget';
 import PulseCheck from '@/components/PulseCheck';
+import ContactCard from '@/components/ContactCard';
 
 type ActiveView = 'chat' | 'qa' | 'poll' | 'resources' | 'rate';
+
+interface Resource {
+  id: string;
+  name: string;
+  url: string;
+  display_order: number;
+}
 
 export default function AudienceSessionPage() {
   const { code } = useParams<{ code: string }>();
@@ -24,6 +32,7 @@ export default function AudienceSessionPage() {
 
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [resources, setResources] = useState<Resource[]>([]);
 
   useEffect(() => {
     let name = sessionStorage.getItem(`lp_name_${code}`);
@@ -56,13 +65,25 @@ export default function AudienceSessionPage() {
       .then(({ data }) => { if (data) setPollQuestion((data as any).question); });
   }, [activePoll, supabase]);
 
+  // Fetch resources
+  useEffect(() => {
+    if (!session?.id) return;
+    supabase
+      .from('resources')
+      .select('*')
+      .eq('session_id', session.id)
+      .order('display_order', { ascending: true })
+      .then(({ data }) => {
+        if (data) setResources(data as Resource[]);
+      });
+  }, [session?.id, supabase]);
+
   async function submitRating(stars: number) {
     if (!session || submittingRating) return;
     setSubmittingRating(true);
     setRating(stars);
     const voterId = getVoterId();
 
-    // Upsert - update if already exists for this voter
     const { data: existing } = await supabase
       .from('ratings')
       .select('id')
@@ -106,19 +127,24 @@ export default function AudienceSessionPage() {
   }
 
   const chatMessages = messages.filter((m) => !m.is_question);
-  const contactInfo = (session as any).contact_info;
-  const resourceUrl = (session as any).resource_url;
+  const s = session as any;
+  const hasResources = resources.length > 0;
+  const hasContact = s.contact_website || s.contact_email || s.contact_phone || s.contact_linkedin || s.contact_twitter || s.contact_instagram || s.contact_info;
   const isPulse = pollQuestion.startsWith('PULSE:');
 
   return (
     <div className="h-screen flex flex-col bg-lp-bg overflow-hidden">
-      {/* Presenter contact info bar */}
+      {/* Presenter info bar */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-lp-surface border-b border-lp-border">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-lp-accent to-lp-pink flex items-center justify-center text-sm shrink-0">⚡</div>
+          {s.headshot_url ? (
+            <img src={s.headshot_url} alt="" className="w-8 h-8 rounded-full object-cover border border-lp-accent/30 shrink-0" />
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-lp-accent to-lp-pink flex items-center justify-center text-sm shrink-0">⚡</div>
+          )}
           <div className="min-w-0">
             <h1 className="text-sm font-semibold truncate">{session.title}</h1>
-            <p className="text-xs text-lp-muted truncate">{session.speaker_name}{contactInfo ? ` · ${contactInfo}` : ''}</p>
+            <p className="text-xs text-lp-muted truncate">{session.speaker_name}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -128,7 +154,7 @@ export default function AudienceSessionPage() {
         </div>
       </div>
 
-      {/* Active poll / pulse check - shown above tabs when active */}
+      {/* Active poll / pulse check */}
       {activePoll && pollQuestion && (
         <div className="px-4 pt-3">
           {isPulse ? (
@@ -145,7 +171,7 @@ export default function AudienceSessionPage() {
           { key: 'chat', label: 'Chat' },
           { key: 'qa', label: 'Q&A' },
           { key: 'poll', label: 'Poll' },
-          ...(resourceUrl ? [{ key: 'resources', label: 'Resources' }] : []),
+          ...(hasResources ? [{ key: 'resources', label: 'Resources' }] : []),
           { key: 'rate', label: 'Rate' },
         ] as { key: ActiveView; label: string }[]).map((tab) => (
           <button
@@ -189,31 +215,46 @@ export default function AudienceSessionPage() {
         )}
 
         {activeView === 'resources' && (
-          <div className="p-4 space-y-4 overflow-y-auto h-full">
-            <div className="bg-lp-surface rounded-xl p-6 border border-lp-border text-center">
-              <p className="text-4xl mb-3">🎁</p>
-              <h3 className="text-lg font-semibold mb-2">Free Resource</h3>
-              <p className="text-sm text-lp-muted mb-4">Shared by {session.speaker_name}</p>
+          <div className="p-4 space-y-3 overflow-y-auto h-full">
+            {resources.map((r) => (
               <a
-                href={resourceUrl}
+                key={r.id}
+                href={r.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block px-6 py-3 bg-gradient-to-r from-lp-accent to-lp-pink rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-all shadow-[0_4px_20px_rgba(108,92,231,0.3)]"
+                className="block bg-lp-surface rounded-xl p-4 border border-lp-border hover:border-lp-accent/50 transition-all group"
               >
-                Download / View Resource →
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🎁</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-lp-text group-hover:text-lp-accent transition-colors">{r.name}</p>
+                    <p className="text-xs text-lp-muted truncate">{r.url}</p>
+                  </div>
+                  <span className="text-lp-accent text-lg">→</span>
+                </div>
               </a>
-            </div>
-            {contactInfo && (
-              <div className="bg-lp-surface rounded-xl p-4 border border-lp-border">
-                <h4 className="text-sm font-medium text-lp-muted mb-1">Get in touch</h4>
-                <p className="text-sm text-lp-text">{contactInfo}</p>
+            ))}
+            {/* Contact card in resources tab too */}
+            {hasContact && (
+              <div className="mt-3">
+                <ContactCard
+                  speakerName={session.speaker_name}
+                  headshotUrl={s.headshot_url}
+                  website={s.contact_website}
+                  email={s.contact_email}
+                  phone={s.contact_phone}
+                  linkedin={s.contact_linkedin}
+                  twitter={s.contact_twitter}
+                  instagram={s.contact_instagram}
+                  contactInfo={s.contact_info}
+                />
               </div>
             )}
           </div>
         )}
 
         {activeView === 'rate' && (
-          <div className="p-4 overflow-y-auto h-full">
+          <div className="p-4 overflow-y-auto h-full space-y-4">
             <div className="bg-lp-surface rounded-xl p-6 border border-lp-border text-center">
               <p className="text-4xl mb-3">⭐</p>
               <h3 className="text-lg font-semibold mb-2">Rate this session</h3>
@@ -227,9 +268,7 @@ export default function AudienceSessionPage() {
                     onMouseLeave={() => setHoverRating(0)}
                     disabled={submittingRating}
                     className={`text-4xl transition-all hover:scale-125 active:scale-95 ${
-                      star <= (hoverRating || rating)
-                        ? 'scale-110'
-                        : 'opacity-30 hover:opacity-60'
+                      star <= (hoverRating || rating) ? 'scale-110' : 'opacity-30 hover:opacity-60'
                     }`}
                   >
                     ⭐
@@ -243,17 +282,26 @@ export default function AudienceSessionPage() {
                 </p>
               )}
             </div>
-            {contactInfo && (
-              <div className="bg-lp-surface rounded-xl p-4 border border-lp-border mt-4">
-                <h4 className="text-sm font-medium text-lp-muted mb-1">Connect with {session.speaker_name}</h4>
-                <p className="text-sm text-lp-text">{contactInfo}</p>
-              </div>
+
+            {/* Contact card in rate tab */}
+            {hasContact && (
+              <ContactCard
+                speakerName={session.speaker_name}
+                headshotUrl={s.headshot_url}
+                website={s.contact_website}
+                email={s.contact_email}
+                phone={s.contact_phone}
+                linkedin={s.contact_linkedin}
+                twitter={s.contact_twitter}
+                instagram={s.contact_instagram}
+                contactInfo={s.contact_info}
+              />
             )}
           </div>
         )}
       </div>
 
-      {/* Reaction bar at bottom */}
+      {/* Reaction bar */}
       <div className="px-3 py-2.5 border-t border-lp-border bg-lp-surface">
         <ReactionBar sessionId={session.id} reactions={reactions} />
       </div>
