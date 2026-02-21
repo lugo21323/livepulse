@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createSupabaseBrowser } from '@/lib/supabase';
 import type { Message } from '@/lib/types';
 
@@ -48,13 +48,33 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   const [replyText, setReplyText] = useState('');
   const [localReactions, setLocalReactions] = useState<Record<string, MessageReactions>>({});
   const [showReactionsFor, setShowReactionsFor] = useState<string | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const supabase = useRef(createSupabaseBrowser()).current;
+  const prevMessageCount = useRef(messages.length);
 
+  // Only auto-scroll when NEW messages arrive (not on reactions/replies)
   useEffect(() => {
+    if (messages.length > prevMessageCount.current) {
+      // A new message was added — auto-scroll to bottom
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevMessageCount.current = messages.length;
+  }, [messages.length]);
+
+  // Track scroll position to show/hide jump-to-bottom button
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollBtn(distanceFromBottom > 100);
+  }, []);
+
+  function scrollToBottom() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }
 
   useEffect(() => {
     if (replyToId && replyInputRef.current) {
@@ -201,7 +221,7 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
               {isPresenter && onStar && (
                 <button
                   onClick={() => onStar(msg.id)}
-                  className={`text-xs p-1 rounded hover:bg-lp-bg/50 transition-all ${isStarred ? 'text-lp-text' : 'text-lp-muted/40 hover:text-lp-muted'}`}
+                  className={`text-sm p-1 rounded hover:bg-lp-bg/50 transition-all ${isStarred ? 'text-lp-text' : 'text-lp-muted/40 hover:text-lp-muted'}`}
                   title={isStarred ? 'Unstar' : 'Star (feature)'}
                 >
                   {isStarred ? '★' : '☆'}
@@ -224,7 +244,7 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
               {isPresenter && onArchive && (
                 <button
                   onClick={() => onArchive(msg.id)}
-                  className="text-xs text-lp-muted/40 hover:text-red-400 p-1 rounded hover:bg-lp-bg/50 transition-all"
+                  className="text-sm text-lp-muted/40 hover:text-red-400 p-1 rounded hover:bg-lp-bg/50 transition-all"
                   title="Archive message"
                 >
                   🗑
@@ -301,7 +321,7 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 min-h-0 overflow-y-auto p-3">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 relative" ref={scrollContainerRef} onScroll={handleScroll}>
         {visibleThreaded.length === 0 && (
           <p className="text-center text-lp-muted text-sm py-8">No messages yet. Say hi!</p>
         )}
@@ -321,6 +341,19 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* Jump to bottom button */}
+      {showScrollBtn && (
+        <div className="flex justify-center -mt-10 relative z-10 pointer-events-none">
+          <button
+            onClick={scrollToBottom}
+            className="pointer-events-auto w-8 h-8 rounded-full bg-lp-surface border border-lp-border text-lp-muted hover:text-lp-text hover:bg-lp-surface-light transition-all shadow-lg flex items-center justify-center"
+            title="Jump to latest"
+          >
+            ↓
+          </button>
+        </div>
+      )}
 
       <form onSubmit={sendMessage} className="p-3 border-t border-lp-border shrink-0">
         <div className="flex gap-2">

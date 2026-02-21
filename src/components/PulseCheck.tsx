@@ -176,14 +176,14 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
               disabled={!prompt.trim()}
               className="px-4 py-2 bg-lp-orange rounded-lg text-sm font-medium text-white disabled:opacity-40 hover:bg-lp-orange/80 transition-colors whitespace-nowrap"
             >
-              🫀 Pulse
+              ✨ Pulse
             </button>
           </div>
         ) : (
           <div className="bg-lp-bg rounded-xl p-4 border border-lp-border">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-semibold flex items-center gap-2">
-                <span>🫀</span> Pulse Check
+                <span>✨</span> Pulse Check
               </h4>
               <button
                 onClick={closePulse}
@@ -224,7 +224,7 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
   return (
     <div className="bg-lp-surface rounded-xl p-4 border border-lp-border">
       <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
-        <span>🫀</span> Pulse Check
+        <span>✨</span> Pulse Check
       </h4>
       <p className="text-sm text-lp-text mb-4">{prompt || 'Quick check!'}</p>
       {!voted ? (
@@ -244,7 +244,7 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
         </div>
       ) : (
         <div className="text-center">
-          <p className="text-lp-green text-sm font-medium">Thanks! 🫀</p>
+          <p className="text-lp-green text-sm font-medium">Thanks! ✨</p>
           <p className="text-xs text-lp-muted mt-1">{total} response{total !== 1 ? 's' : ''} so far</p>
         </div>
       )}
