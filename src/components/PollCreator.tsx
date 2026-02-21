@@ -5,6 +5,15 @@ import { createSupabaseBrowser } from '@/lib/supabase';
 
 const COLORS = ['#6c5ce7', '#00d2a0', '#ff6b9d', '#ffa348', '#ffd43b', '#a29bfe'];
 
+const PRESETS = [
+  { label: 'Yes / No', options: ['Yes', 'No'] },
+  { label: 'True / False', options: ['True', 'False'] },
+  { label: 'A / B / C / D', options: ['A', 'B', 'C', 'D'] },
+  { label: 'Scale 1–5', options: ['1', '2', '3', '4', '5'] },
+  { label: 'Agree → Disagree', options: ['Strongly Agree', 'Agree', 'Neutral', 'Disagree', 'Strongly Disagree'] },
+  { label: 'Confidence', options: ['Very Confident', 'Somewhat', 'Not Sure', 'Lost'] },
+];
+
 interface PollCreatorProps {
   sessionId: string;
   onCreated: () => void;
@@ -15,6 +24,10 @@ export default function PollCreator({ sessionId, onCreated, onCancel }: PollCrea
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
   const [creating, setCreating] = useState(false);
+
+  function applyPreset(preset: typeof PRESETS[number]) {
+    setOptions(preset.options);
+  }
 
   function addOption() {
     if (options.length < 6) setOptions([...options, '']);
@@ -71,9 +84,26 @@ export default function PollCreator({ sessionId, onCreated, onCancel }: PollCrea
 
   return (
     <form onSubmit={create} className="bg-lp-surface rounded-xl p-4 border border-lp-border space-y-4">
-      <h3 className="text-sm font-semibold flex items-center gap-2">
+      <h3 className="text-sm font-bold flex items-center gap-2">
         <span>📊</span> Create Poll
       </h3>
+
+      {/* Presets */}
+      <div>
+        <p className="text-xs text-lp-muted mb-2 font-semibold">Quick Presets</p>
+        <div className="flex flex-wrap gap-1.5">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => applyPreset(preset)}
+              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-lp-bg border border-lp-border text-lp-muted hover:text-lp-accent hover:border-lp-accent/50 transition-colors"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <input
         type="text"
@@ -81,7 +111,7 @@ export default function PollCreator({ sessionId, onCreated, onCancel }: PollCrea
         onChange={(e) => setQuestion(e.target.value)}
         placeholder="Your question..."
         maxLength={200}
-        className="w-full bg-lp-bg border border-lp-border rounded-lg px-3 py-2 text-sm text-lp-text placeholder:text-lp-muted focus:outline-none focus:border-lp-accent"
+        className="w-full bg-lp-bg border border-lp-border rounded-lg px-3 py-2.5 text-sm font-medium text-lp-text placeholder:text-lp-muted focus:outline-none focus:border-lp-accent"
       />
 
       <div className="space-y-2">
@@ -116,7 +146,7 @@ export default function PollCreator({ sessionId, onCreated, onCancel }: PollCrea
         <button
           type="button"
           onClick={addOption}
-          className="text-xs text-lp-accent hover:text-lp-accent/80"
+          className="text-xs font-semibold text-lp-accent hover:text-lp-accent/80"
         >
           + Add option
         </button>
@@ -133,9 +163,9 @@ export default function PollCreator({ sessionId, onCreated, onCancel }: PollCrea
         <button
           type="submit"
           disabled={!question.trim() || options.filter((o) => o.trim()).length < 2 || creating}
-          className="px-4 py-1.5 bg-lp-accent rounded-lg text-sm font-medium text-white disabled:opacity-40 hover:bg-lp-accent/80 transition-colors"
+          className="px-4 py-1.5 bg-lp-accent rounded-lg text-sm font-semibold text-white disabled:opacity-40 hover:bg-lp-accent/80 transition-colors"
         >
-          {creating ? 'Creating...' : 'Launch Poll'}
+          {creating ? 'Creating...' : '🚀 Launch Poll'}
         </button>
       </div>
     </form>

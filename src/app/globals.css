@@ -87,3 +87,29 @@ body {
 .animate-pulse-dot {
   animation: pulse 2s infinite;
 }
+
+/* Focus flash for slide iframe */
+@keyframes focusFlash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.animate-focus-flash {
+  animation: focusFlash 2s ease-out forwards;
+}
+
+/* Presenter panel - bolder, larger text */
+.presenter-panel {
+  font-size: 0.9375rem; /* 15px base */
+  font-weight: 500;
+}
+
+.presenter-panel .text-sm {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.presenter-panel .text-xs {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}

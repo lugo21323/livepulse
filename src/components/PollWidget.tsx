@@ -12,18 +12,19 @@ interface PollWidgetProps {
   question: string;
   options: PollOption[];
   showLiveResults?: boolean;
+  isClosed?: boolean;
 }
 
-export default function PollWidget({ pollId, question, options, showLiveResults = false }: PollWidgetProps) {
+export default function PollWidget({ pollId, question, options, showLiveResults = false, isClosed = false }: PollWidgetProps) {
   const [voted, setVoted] = useState<string | null>(null);
   const [voting, setVoting] = useState(false);
 
   const totalVotes = options.reduce((sum, o) => sum + o.vote_count, 0);
-  // Show results if user voted OR if live results mode (presenter view)
-  const showResults = !!voted || showLiveResults;
+  const showResults = !!voted || showLiveResults || isClosed;
+  const maxVotes = Math.max(...options.map((o) => o.vote_count), 1);
 
   async function vote(optionId: string) {
-    if (voted || voting) return;
+    if (voted || voting || isClosed) return;
     setVoting(true);
     const supabase = createSupabaseBrowser();
     const voterId = getVoterId();
@@ -38,51 +39,71 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
   }
 
   return (
-    <div className="bg-lp-surface rounded-xl p-4 border border-lp-border">
-      <div className="flex items-center gap-2 mb-3">
+    <div className={`rounded-xl p-4 border ${isClosed ? 'bg-lp-bg/50 border-lp-border/50 opacity-80' : 'bg-lp-surface border-lp-border'}`}>
+      <div className="flex items-center gap-2 mb-1">
         <span className="text-lg">📊</span>
-        <h3 className="text-sm font-semibold">{question}</h3>
+        <h3 className="text-base font-bold">{question}</h3>
       </div>
+      {isClosed && (
+        <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-lp-muted bg-lp-border/50 px-2 py-0.5 rounded mb-2">
+          Closed
+        </span>
+      )}
 
-      <div className="space-y-2">
+      <div className="space-y-2.5 mt-2">
         {options.map((opt, i) => {
           const pct = totalVotes > 0 ? Math.round((opt.vote_count / totalVotes) * 100) : 0;
           const color = opt.color || BAR_COLORS[i % BAR_COLORS.length];
           const isVoted = voted === opt.id;
+          const isWinning = opt.vote_count === maxVotes && totalVotes > 0;
 
           return (
             <button
               key={opt.id}
               onClick={() => vote(opt.id)}
-              disabled={!!voted || voting || showLiveResults}
-              className={`w-full text-left relative overflow-hidden rounded-lg p-3 transition-all ${
-                voted || showLiveResults
+              disabled={!!voted || voting || showLiveResults || isClosed}
+              className={`w-full text-left relative overflow-hidden rounded-xl p-3.5 transition-all ${
+                voted || showLiveResults || isClosed
                   ? 'cursor-default'
-                  : 'hover:border-lp-accent/50 active:scale-[0.99]'
-              } ${isVoted ? 'border-2' : 'border border-lp-border'}`}
+                  : 'hover:border-lp-accent/50 active:scale-[0.99] hover:shadow-[0_0_20px_rgba(108,92,231,0.15)]'
+              } ${isVoted ? 'border-2 shadow-[0_0_15px_rgba(108,92,231,0.2)]' : 'border border-lp-border'}`}
               style={{
                 borderColor: isVoted ? color : undefined,
                 backgroundColor: 'rgba(30, 30, 46, 0.8)',
               }}
             >
-              {/* Progress bar fill - always shown when results visible */}
+              {/* Animated gradient progress bar */}
               {showResults && (
                 <div
-                  className="absolute inset-y-0 left-0 transition-all duration-700 ease-out rounded-lg"
+                  className="absolute inset-y-0 left-0 transition-all duration-1000 ease-out rounded-xl"
                   style={{
                     width: `${pct}%`,
-                    backgroundColor: `${color}20`,
+                    background: `linear-gradient(90deg, ${color}30, ${color}15)`,
+                    borderRight: pct > 0 ? `2px solid ${color}60` : 'none',
                   }}
                 />
               )}
 
               <div className="relative flex justify-between items-center">
-                <span className="text-sm">{opt.option_text}</span>
-                {showResults && (
-                  <span className="text-sm font-semibold flex items-center gap-2" style={{ color }}>
-                    <span className="text-xs text-lp-muted">{opt.vote_count}</span>
-                    {pct}%
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: color,
+                      boxShadow: isWinning && showResults ? `0 0 8px ${color}` : 'none',
+                    }}
+                  />
+                  <span className={`text-sm font-semibold ${isWinning && showResults ? 'text-lp-text' : ''}`}>
+                    {opt.option_text}
                   </span>
+                </div>
+                {showResults && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-lp-muted font-medium">{opt.vote_count}</span>
+                    <span className="text-base font-extrabold min-w-[3ch] text-right" style={{ color }}>
+                      {pct}%
+                    </span>
+                  </div>
                 )}
               </div>
             </button>
@@ -90,9 +111,11 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
         })}
       </div>
 
-      {totalVotes > 0 && (
-        <p className="text-xs text-lp-muted mt-3 text-center">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
-      )}
+      <div className="flex items-center justify-center gap-2 mt-3 pt-2 border-t border-lp-border/50">
+        <span className="text-xs text-lp-muted">👥</span>
+        <span className="text-sm font-bold text-lp-text">{totalVotes}</span>
+        <span className="text-xs text-lp-muted">vote{totalVotes !== 1 ? 's' : ''}</span>
+      </div>
     </div>
   );
 }
