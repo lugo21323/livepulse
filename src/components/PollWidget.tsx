@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createSupabaseBrowser } from '@/lib/supabase';
 import { getVoterId } from '@/lib/supabase';
 import type { PollOption } from '@/lib/types';
@@ -19,6 +19,12 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
   const [voted, setVoted] = useState<string | null>(null);
   const [voting, setVoting] = useState(false);
 
+  // Restore voted state from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(`lp_voted_${pollId}`);
+    if (stored) setVoted(stored);
+  }, [pollId]);
+
   const totalVotes = options.reduce((sum, o) => sum + o.vote_count, 0);
   const showResults = !!voted || showLiveResults || isClosed;
   const maxVotes = Math.max(...options.map((o) => o.vote_count), 1);
@@ -34,6 +40,7 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
     });
     if (data) {
       setVoted(optionId);
+      localStorage.setItem(`lp_voted_${pollId}`, optionId);
     }
     setVoting(false);
   }
@@ -126,6 +133,13 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
           );
         })}
       </div>
+
+      {/* Vote confirmation banner */}
+      {voted && !showLiveResults && (
+        <div className="mt-3 py-2 px-3 rounded-lg bg-lp-green/10 border border-lp-green/30 text-center">
+          <span className="text-sm font-semibold text-lp-green">✓ Vote submitted!</span>
+        </div>
+      )}
 
       <div className="flex items-center justify-center gap-2 mt-3 pt-2 border-t border-lp-border/50">
         <span className="text-xs text-lp-muted">👥</span>

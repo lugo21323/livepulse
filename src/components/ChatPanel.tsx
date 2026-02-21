@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { createSupabaseBrowser } from '@/lib/supabase';
 import type { Message } from '@/lib/types';
 
@@ -19,6 +19,11 @@ interface ChatPanelProps {
 
 interface MessageReactions {
   [emoji: string]: number;
+}
+
+interface ThreadedMessage {
+  msg: Message;
+  replies: Message[];
 }
 
 export default function ChatPanel({ messages, sessionId, authorName, compact = false, twoColumn = false, isPresenter = false, archivedIds, onArchive }: ChatPanelProps) {
@@ -41,6 +46,53 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
       replyInputRef.current.focus();
     }
   }, [replyToId]);
+
+  // Thread replies under their parent messages
+  const threaded = useMemo(() => {
+    const result: ThreadedMessage[] = [];
+    const replyIds = new Set<string>();
+
+    // First pass: identify replies and map them to parents
+    const replyMap = new Map<string, Message[]>(); // parentId -> replies
+
+    for (const msg of messages) {
+      if (msg.content.startsWith('@')) {
+        const nameMatch = msg.content.match(/^@([^:]+):/);
+        if (nameMatch) {
+          const targetName = nameMatch[1];
+          // Find the most recent non-reply message from this author before this reply
+          let parentId: string | null = null;
+          for (let i = messages.indexOf(msg) - 1; i >= 0; i--) {
+            if (messages[i].author_name === targetName && !messages[i].content.startsWith('@')) {
+              parentId = messages[i].id;
+              break;
+            }
+          }
+          if (parentId) {
+            replyIds.add(msg.id);
+            if (!replyMap.has(parentId)) replyMap.set(parentId, []);
+            replyMap.get(parentId)!.push(msg);
+          }
+        }
+      }
+    }
+
+    // Second pass: build threaded list
+    for (const msg of messages) {
+      if (replyIds.has(msg.id)) continue; // Skip replies - they render under parent
+      result.push({
+        msg,
+        replies: replyMap.get(msg.id) || [],
+      });
+    }
+
+    return result;
+  }, [messages]);
+
+  // Filter out archived messages
+  const visibleThreaded = archivedIds
+    ? threaded.filter((t) => !archivedIds.has(t.msg.id))
+    : threaded;
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
@@ -88,29 +140,43 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
     return localReactions[messageId] || {};
   }
 
-  // Filter out archived messages for display
-  const visibleMessages = archivedIds ? messages.filter((m) => !archivedIds.has(m.id)) : messages;
+  function renderReply(reply: Message) {
+    const replyContent = reply.content.replace(/^@[^:]+:\s*/, '');
+    return (
+      <div key={reply.id} className="ml-4 mt-1 pl-3 border-l-2 border-lp-accent/30 animate-slide-in">
+        <div className="rounded-lg px-2.5 py-1.5 bg-lp-accent/5">
+          <span className="text-xs font-medium text-lp-accent">{reply.author_name}</span>
+          <p className="text-sm text-lp-text/90 mt-0.5">{replyContent}</p>
+        </div>
+      </div>
+    );
+  }
 
-  function renderMessage(msg: Message) {
+  function renderMessageBlock(thread: ThreadedMessage) {
+    const { msg, replies } = thread;
     const reactions = getReactionCount(msg.id);
     const hasReactions = Object.keys(reactions).length > 0;
-    const isReply = msg.content.startsWith('@');
     const isReplying = replyToId === msg.id;
+    const isReply = msg.content.startsWith('@');
+
+    // If this is a reply that didn't match a parent (orphan), show it normally
+    const displayContent = isReply ? msg.content.replace(/^@[^:]+:\s*/, '') : msg.content;
+    const replyTarget = isReply ? msg.content.match(/^@([^:]+):/)?.[1] : null;
 
     return (
       <div key={msg.id} className="animate-slide-in group">
         <div className={`rounded-lg px-3 py-2 relative ${compact ? 'bg-lp-bg' : 'bg-lp-surface-light'}`}>
-          {isReply && (
+          {replyTarget && (
             <div className="text-[10px] text-lp-muted mb-0.5 flex items-center gap-1">
-              <span>↩</span> replying
+              <span>↩</span> replying to {replyTarget}
             </div>
           )}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <span className="text-xs font-medium text-lp-accent">{msg.author_name}</span>
-              <p className="text-sm text-lp-text mt-0.5">{msg.content}</p>
+              <p className="text-sm text-lp-text mt-0.5">{displayContent}</p>
             </div>
-            {/* Action buttons - always visible with subtle style */}
+            {/* Action buttons */}
             <div className="flex gap-1 shrink-0 mt-0.5">
               <button
                 onClick={() => setShowReactionsFor(showReactionsFor === msg.id ? null : msg.id)}
@@ -166,13 +232,15 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
           )}
         </div>
 
-        {/* Inline reply input - appears right below the message */}
+        {/* Inline replies shown below parent */}
+        {replies.map((reply) => renderReply(reply))}
+
+        {/* Inline reply input */}
         {isReplying && (
           <form
             onSubmit={(e) => { e.preventDefault(); sendReply(msg); }}
-            className="mt-1 ml-3 flex gap-2 items-center animate-slide-in"
+            className="mt-1 ml-4 pl-3 border-l-2 border-lp-accent/40 flex gap-2 items-center animate-slide-in"
           >
-            <span className="text-xs text-lp-muted shrink-0">↩</span>
             <input
               ref={replyInputRef}
               type="text"
@@ -204,26 +272,28 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
 
   return (
     <div className="flex flex-col h-full">
-      <div className={`flex-1 overflow-y-auto p-3 ${twoColumn ? '' : 'space-y-2'}`}>
-        {visibleMessages.length === 0 && (
+      <div className="flex-1 min-h-0 overflow-y-auto p-3">
+        {visibleThreaded.length === 0 && (
           <p className="text-center text-lp-muted text-sm py-8">No messages yet. Say hi!</p>
         )}
         {twoColumn ? (
-          <div className="flex gap-3">
+          <div className="flex gap-3 h-full">
             <div className="flex-1 space-y-2">
-              {visibleMessages.slice(0, Math.ceil(visibleMessages.length / 2)).map((msg) => renderMessage(msg))}
+              {visibleThreaded.slice(0, Math.ceil(visibleThreaded.length / 2)).map((t) => renderMessageBlock(t))}
             </div>
             <div className="flex-1 space-y-2">
-              {visibleMessages.slice(Math.ceil(visibleMessages.length / 2)).map((msg) => renderMessage(msg))}
+              {visibleThreaded.slice(Math.ceil(visibleThreaded.length / 2)).map((t) => renderMessageBlock(t))}
             </div>
           </div>
         ) : (
-          visibleMessages.map((msg) => renderMessage(msg))
+          <div className="space-y-2">
+            {visibleThreaded.map((t) => renderMessageBlock(t))}
+          </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={sendMessage} className="p-3 border-t border-lp-border">
+      <form onSubmit={sendMessage} className="p-3 border-t border-lp-border shrink-0">
         <div className="flex gap-2">
           <input
             type="text"

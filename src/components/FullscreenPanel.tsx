@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import type { Message } from '@/lib/types';
 
 type FullscreenTab = 'chat' | 'qa' | 'polls';
@@ -9,16 +11,28 @@ interface FullscreenPanelProps {
   onTabChange: (tab: FullscreenTab) => void;
   sessionTitle?: string;
   speakerName?: string;
+  sessionCode: string;
   messages: Message[];
   onClose: () => void;
   chatContent: React.ReactNode;
   qaContent: React.ReactNode;
   pollContent: React.ReactNode;
+  archivedCount?: number;
+  showArchived?: boolean;
+  onToggleArchived?: () => void;
+  onRestoreAll?: () => void;
 }
 
-export default function FullscreenPanel({ activeTab, onTabChange, sessionTitle, speakerName, messages, onClose, chatContent, qaContent, pollContent }: FullscreenPanelProps) {
-  const chatMessages = messages.filter((m) => !m.is_question);
+export default function FullscreenPanel({
+  activeTab, onTabChange, sessionTitle, speakerName, sessionCode, messages, onClose,
+  chatContent, qaContent, pollContent,
+  archivedCount = 0, showArchived = false, onToggleArchived, onRestoreAll,
+}: FullscreenPanelProps) {
+  const [qrFullscreen, setQrFullscreen] = useState(false);
 
+  const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/session/${sessionCode}` : '';
+
+  const chatMessages = messages.filter((m) => !m.is_question);
   const repliedToNames = new Set<string>();
   chatMessages.forEach((m) => {
     if (m.content.startsWith('@')) {
@@ -26,23 +40,40 @@ export default function FullscreenPanel({ activeTab, onTabChange, sessionTitle, 
       if (nameMatch) repliedToNames.add(nameMatch[1]);
     }
   });
-
   const featured = chatMessages.filter(
     (m) => repliedToNames.has(m.author_name) && !m.content.startsWith('@')
   ).slice(-20);
 
-  const tabLabel = activeTab === 'chat' ? 'Chat' : activeTab === 'qa' ? 'Q&A' : 'Polls';
+  // Fullscreen QR overlay
+  if (qrFullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 bg-lp-bg flex flex-col items-center justify-center cursor-pointer" onClick={() => setQrFullscreen(false)}>
+        <div className="text-center mb-8">
+          {sessionTitle && <h1 className="text-4xl font-extrabold text-lp-text mb-2">{sessionTitle}</h1>}
+          {speakerName && <p className="text-xl text-lp-muted font-medium">{speakerName}</p>}
+        </div>
+        <div className="bg-white p-8 rounded-3xl shadow-2xl">
+          <QRCodeSVG value={joinUrl} size={360} level="M" bgColor="#ffffff" fgColor="#0a0a0f" />
+        </div>
+        <div className="mt-6 flex items-center gap-3">
+          <span className="text-lg text-lp-muted font-medium">Join code:</span>
+          <span className="text-4xl font-extrabold tracking-[0.25em] text-lp-accent">{sessionCode}</span>
+        </div>
+        <p className="mt-8 text-sm text-lp-muted">Click anywhere to close</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 z-40 bg-lp-bg/95 backdrop-blur-sm flex flex-col">
+    <div className="fixed inset-0 z-40 bg-lp-bg/95 backdrop-blur-sm flex flex-col presenter-panel">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-lp-border">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-lp-border shrink-0">
         <div className="flex items-center gap-4">
           {(sessionTitle || speakerName) && (
             <div className="flex items-center gap-3 pr-5 border-r border-lp-border">
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-lp-accent to-lp-pink flex items-center justify-center text-lg">⚡</div>
               <div>
-                {sessionTitle && <p className="text-xl font-extrabold text-lp-text leading-tight">{sessionTitle}</p>}
+                {sessionTitle && <p className="text-2xl font-extrabold text-lp-text leading-tight">{sessionTitle}</p>}
                 {speakerName && <p className="text-sm text-lp-muted font-medium">{speakerName}</p>}
               </div>
             </div>
@@ -72,46 +103,94 @@ export default function FullscreenPanel({ activeTab, onTabChange, sessionTitle, 
         </button>
       </div>
 
-      {/* Two-column layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Archive bar (consistent with sidebar) */}
+      {activeTab === 'chat' && archivedCount > 0 && onToggleArchived && onRestoreAll && (
+        <div className="flex items-center justify-between px-4 py-1.5 bg-lp-bg/60 border-b border-lp-border text-xs shrink-0">
+          <span className="text-lp-muted">
+            {archivedCount} archived
+            {showArchived && <span className="text-lp-accent ml-1">(showing)</span>}
+          </span>
+          <div className="flex gap-3">
+            <button onClick={onToggleArchived} className="text-lp-accent hover:text-lp-accent/80 font-medium transition-colors">
+              {showArchived ? 'Hide' : 'Show'}
+            </button>
+            <button onClick={onRestoreAll} className="text-lp-muted hover:text-lp-text font-medium transition-colors">
+              Restore all
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main content area */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left: Tab content */}
-        <div className="flex-1 border-r border-lp-border overflow-hidden">
-          <div className="px-4 py-2 border-b border-lp-border">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <div className="px-4 py-2 border-b border-lp-border shrink-0">
             <h3 className="text-sm font-medium text-lp-muted">
               {activeTab === 'chat' ? 'All Messages' : activeTab === 'qa' ? 'Questions & Answers' : 'Polls'}
             </h3>
           </div>
-          <div className="h-full overflow-hidden">
+          <div className="flex-1 overflow-hidden min-h-0">
             {activeTab === 'chat' && chatContent}
             {activeTab === 'qa' && qaContent}
-            {activeTab === 'polls' && pollContent}
+            {activeTab === 'polls' && (
+              <div className="h-full overflow-y-auto flex justify-center p-6">
+                <div className="w-full max-w-2xl">
+                  {pollContent}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right: Featured comments (shown for chat/qa) */}
-        {activeTab !== 'polls' && (
-          <div className="w-[400px] overflow-hidden flex flex-col shrink-0">
-            <div className="px-4 py-2 border-b border-lp-border">
-              <h3 className="text-sm font-medium text-lp-muted flex items-center gap-2">
-                <span>⭐</span> Featured Comments
-              </h3>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {featured.length === 0 ? (
-                <p className="text-center text-lp-muted text-sm py-8">
-                  Comments that get the most engagement will appear here
-                </p>
-              ) : (
-                featured.map((msg) => (
-                  <div key={msg.id} className="bg-lp-surface rounded-xl p-4 border border-lp-border">
-                    <span className="text-xs font-medium text-lp-accent">{msg.author_name}</span>
-                    <p className="text-base text-lp-text mt-1">{msg.content}</p>
-                  </div>
-                ))
-              )}
+        {/* Right sidebar: QR code + Featured comments */}
+        <div className="w-[380px] border-l border-lp-border flex flex-col shrink-0 overflow-hidden">
+          {/* QR Code section */}
+          <div
+            className="p-4 border-b border-lp-border bg-lp-surface/50 cursor-pointer hover:bg-lp-surface/80 transition-colors shrink-0"
+            onDoubleClick={() => setQrFullscreen(true)}
+            title="Double-click to show fullscreen QR"
+          >
+            <div className="flex items-center gap-3">
+              <div className="bg-white p-2 rounded-lg shrink-0">
+                <QRCodeSVG value={joinUrl} size={80} level="M" bgColor="#ffffff" fgColor="#0a0a0f" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-lp-muted font-medium mb-1">Scan to join</p>
+                <div className="inline-flex items-center gap-1.5 bg-lp-bg rounded-md px-2 py-1">
+                  <span className="text-[10px] text-lp-muted">CODE</span>
+                  <span className="text-sm font-extrabold tracking-wider text-lp-accent">{sessionCode}</span>
+                </div>
+                <p className="text-[10px] text-lp-muted/60 mt-1">Double-click for fullscreen</p>
+              </div>
             </div>
           </div>
-        )}
+
+          {/* Featured comments */}
+          {activeTab !== 'polls' && (
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+              <div className="px-4 py-2 border-b border-lp-border shrink-0">
+                <h3 className="text-sm font-medium text-lp-muted flex items-center gap-2">
+                  <span>⭐</span> Featured Comments
+                </h3>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+                {featured.length === 0 ? (
+                  <p className="text-center text-lp-muted text-sm py-8">
+                    Comments with replies will appear here
+                  </p>
+                ) : (
+                  featured.map((msg) => (
+                    <div key={msg.id} className="bg-lp-surface rounded-xl p-4 border border-lp-border">
+                      <span className="text-xs font-medium text-lp-accent">{msg.author_name}</span>
+                      <p className="text-base text-lp-text mt-1">{msg.content}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import FullscreenPanel from '@/components/FullscreenPanel';
 import FloatingReactions from '@/components/FloatingReactions';
 import SessionSettingsModal from '@/components/SessionSettingsModal';
 import ResourceEditor from '@/components/ResourceEditor';
+import { QRCodeSVG } from 'qrcode.react';
 
 type SidebarTab = 'chat' | 'qa' | 'polls';
 type SidebarWidth = '1/4' | '1/3' | '1/2';
@@ -51,6 +52,7 @@ export default function PresenterLivePage() {
   const [closedPolls, setClosedPolls] = useState<ClosedPoll[]>([]);
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
+  const [fullscreenQR, setFullscreenQR] = useState(false);
 
   const [lastSeenChat, setLastSeenChat] = useState(0);
   const [lastSeenQA, setLastSeenQA] = useState(0);
@@ -80,7 +82,7 @@ export default function PresenterLivePage() {
       if (e.key === '2') setActiveTab('qa');
       if (e.key === '3') setActiveTab('polls');
       if (e.key === 'f' || e.key === 'F') setFullscreenTab((prev) => prev ? null : activeTab);
-      if (e.key === 'Escape') { setFullscreenTab(null); setShowSettings(false); setShowEndConfirm(false); }
+      if (e.key === 'Escape') { setFullscreenTab(null); setShowSettings(false); setShowEndConfirm(false); setFullscreenQR(false); }
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
@@ -240,6 +242,24 @@ export default function PresenterLivePage() {
         </div>
       )}
 
+      {/* Fullscreen QR overlay */}
+      {fullscreenQR && (
+        <div className="fixed inset-0 z-50 bg-lp-bg flex flex-col items-center justify-center cursor-pointer" onClick={() => setFullscreenQR(false)}>
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-extrabold text-lp-text mb-2">{session.title}</h1>
+            <p className="text-xl text-lp-muted font-medium">{session.speaker_name}</p>
+          </div>
+          <div className="bg-white p-8 rounded-3xl shadow-2xl">
+            <QRCodeSVG value={typeof window !== 'undefined' ? `${window.location.origin}/session/${session.session_code}` : ''} size={360} level="M" bgColor="#ffffff" fgColor="#0a0a0f" />
+          </div>
+          <div className="mt-6 flex items-center gap-3">
+            <span className="text-lg text-lp-muted font-medium">Join code:</span>
+            <span className="text-4xl font-extrabold tracking-[0.25em] text-lp-accent">{session.session_code}</span>
+          </div>
+          <p className="mt-8 text-sm text-lp-muted">Click anywhere to close</p>
+        </div>
+      )}
+
       {/* Fullscreen panel with tab switching */}
       {fullscreenTab && (
         <FullscreenPanel
@@ -247,17 +267,22 @@ export default function PresenterLivePage() {
           onTabChange={(tab) => setFullscreenTab(tab)}
           sessionTitle={session.title}
           speakerName={session.speaker_name}
+          sessionCode={session.session_code}
           messages={messages}
           onClose={() => setFullscreenTab(null)}
-          chatContent={<ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn isPresenter archivedIds={archivedIds} onArchive={archiveMessage} />}
+          chatContent={<ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn isPresenter archivedIds={showArchived ? undefined : archivedIds} onArchive={archiveMessage} />}
           qaContent={<QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
           pollContent={
             activePoll ? (
-              <div className="p-6"><PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults /></div>
+              <PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults />
             ) : (
               <div className="flex items-center justify-center h-full text-lp-muted text-sm">No active poll</div>
             )
           }
+          archivedCount={archivedIds.size}
+          showArchived={showArchived}
+          onToggleArchived={() => setShowArchived(!showArchived)}
+          onRestoreAll={unarchiveAll}
         />
       )}
 
@@ -430,7 +455,7 @@ export default function PresenterLivePage() {
         </div>
 
         {/* QR + End session X in bottom-right */}
-        <div className="relative">
+        <div className="relative" onDoubleClick={() => setFullscreenQR(true)} title="Double-click for fullscreen QR">
           <SidebarQR sessionCode={session.session_code} />
           <button
             onClick={() => setShowEndConfirm(true)}
