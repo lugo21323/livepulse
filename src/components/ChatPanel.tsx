@@ -62,7 +62,7 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
     const channel = supabase
       .channel(`msg-reactions:${sessionId}`, { config: { broadcast: { self: true } } })
       .on('broadcast', { event: 'reaction' }, (payload: any) => {
-        const { messageId, emoji } = payload.payload;
+        const { messageId, emoji } = payload.payload as { messageId: string; emoji: string };
         if (messageId && emoji) {
           setLocalReactions((prev) => {
             const msgReactions = { ...(prev[messageId] || {}) };
