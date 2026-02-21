@@ -16,6 +16,7 @@ import SidebarQR from '@/components/SidebarQR';
 import FullscreenPanel from '@/components/FullscreenPanel';
 import FloatingReactions from '@/components/FloatingReactions';
 import SessionSettingsModal from '@/components/SessionSettingsModal';
+import ResourceEditor from '@/components/ResourceEditor';
 
 type SidebarTab = 'chat' | 'qa' | 'polls';
 type SidebarWidth = '1/4' | '1/3' | '1/2';
@@ -48,6 +49,8 @@ export default function PresenterLivePage() {
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState<SidebarWidth>('1/3');
   const [closedPolls, setClosedPolls] = useState<ClosedPoll[]>([]);
+  const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
+  const [showArchived, setShowArchived] = useState(false);
 
   const [lastSeenChat, setLastSeenChat] = useState(0);
   const [lastSeenQA, setLastSeenQA] = useState(0);
@@ -175,6 +178,19 @@ export default function PresenterLivePage() {
     setSidebarWidth(sizes[(idx + 1) % sizes.length]);
   }
 
+  function archiveMessage(id: string) {
+    setArchivedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }
+
+  function unarchiveAll() {
+    setArchivedIds(new Set());
+    setShowArchived(false);
+  }
+
   if (loading || !session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-lp-bg">
@@ -182,8 +198,6 @@ export default function PresenterLivePage() {
       </div>
     );
   }
-
-  const fullscreenLabel = fullscreenTab === 'chat' ? 'Chat' : fullscreenTab === 'qa' ? 'Q&A' : 'Polls';
 
   return (
     <div className="h-screen flex bg-lp-bg overflow-hidden">
@@ -226,15 +240,25 @@ export default function PresenterLivePage() {
         </div>
       )}
 
-      {/* Fullscreen panel */}
+      {/* Fullscreen panel with tab switching */}
       {fullscreenTab && (
-        <FullscreenPanel title={fullscreenLabel} sessionTitle={session.title} speakerName={session.speaker_name} messages={fullscreenTab === 'chat' ? chatMessages : messages} onClose={() => setFullscreenTab(null)}>
-          {fullscreenTab === 'chat' && <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn />}
-          {fullscreenTab === 'qa' && <QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
-          {fullscreenTab === 'polls' && activePoll && (
-            <div className="p-6"><PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults /></div>
-          )}
-        </FullscreenPanel>
+        <FullscreenPanel
+          activeTab={fullscreenTab}
+          onTabChange={(tab) => setFullscreenTab(tab)}
+          sessionTitle={session.title}
+          speakerName={session.speaker_name}
+          messages={messages}
+          onClose={() => setFullscreenTab(null)}
+          chatContent={<ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn isPresenter archivedIds={archivedIds} onArchive={archiveMessage} />}
+          qaContent={<QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
+          pollContent={
+            activePoll ? (
+              <div className="p-6"><PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults /></div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-lp-muted text-sm">No active poll</div>
+            )
+          }
+        />
       )}
 
       {/* Main area - Slides */}
@@ -324,7 +348,29 @@ export default function PresenterLivePage() {
 
         {/* Tab content */}
         <div className="flex-1 overflow-hidden presenter-panel">
-          {activeTab === 'chat' && <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn={isWide} />}
+          {activeTab === 'chat' && (
+            <div className="flex flex-col h-full">
+              {archivedIds.size > 0 && (
+                <div className="flex items-center justify-between px-3 py-1.5 bg-lp-bg/60 border-b border-lp-border text-xs">
+                  <span className="text-lp-muted">
+                    {archivedIds.size} archived
+                    {showArchived && <span className="text-lp-accent ml-1">(showing)</span>}
+                  </span>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowArchived(!showArchived)} className="text-lp-accent hover:text-lp-accent/80 font-medium transition-colors">
+                      {showArchived ? 'Hide' : 'Show'}
+                    </button>
+                    <button onClick={unarchiveAll} className="text-lp-muted hover:text-lp-text font-medium transition-colors">
+                      Restore all
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="flex-1 overflow-hidden">
+                <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn={isWide} isPresenter archivedIds={showArchived ? undefined : archivedIds} onArchive={archiveMessage} />
+              </div>
+            </div>
+          )}
           {activeTab === 'qa' && <QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
           {activeTab === 'polls' && (
             <div className="p-3 space-y-3 overflow-y-auto h-full">

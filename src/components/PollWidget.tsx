@@ -66,10 +66,11 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
                 voted || showLiveResults || isClosed
                   ? 'cursor-default'
                   : 'hover:border-lp-accent/50 active:scale-[0.99] hover:shadow-[0_0_20px_rgba(108,92,231,0.15)]'
-              } ${isVoted ? 'border-2 shadow-[0_0_15px_rgba(108,92,231,0.2)]' : 'border border-lp-border'}`}
+              } ${isVoted ? 'border-2' : 'border border-lp-border'}`}
               style={{
                 borderColor: isVoted ? color : undefined,
-                backgroundColor: 'rgba(30, 30, 46, 0.8)',
+                boxShadow: isVoted ? `0 0 20px ${color}40, 0 0 0 3px ${color}30, inset 0 0 30px ${color}08` : undefined,
+                backgroundColor: isVoted ? `${color}12` : 'rgba(30, 30, 46, 0.8)',
               }}
             >
               {/* Animated gradient progress bar */}
@@ -78,7 +79,9 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
                   className="absolute inset-y-0 left-0 transition-all duration-1000 ease-out rounded-xl"
                   style={{
                     width: `${pct}%`,
-                    background: `linear-gradient(90deg, ${color}30, ${color}15)`,
+                    background: isVoted
+                      ? `linear-gradient(90deg, ${color}45, ${color}25)`
+                      : `linear-gradient(90deg, ${color}30, ${color}15)`,
                     borderRight: pct > 0 ? `2px solid ${color}60` : 'none',
                   }}
                 />
@@ -86,21 +89,34 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
 
               <div className="relative flex justify-between items-center">
                 <div className="flex items-center gap-2.5">
-                  <div
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: color,
-                      boxShadow: isWinning && showResults ? `0 0 8px ${color}` : 'none',
-                    }}
-                  />
-                  <span className={`text-sm font-semibold ${isWinning && showResults ? 'text-lp-text' : ''}`}>
+                  {isVoted ? (
+                    <div
+                      className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
+                      style={{
+                        backgroundColor: color,
+                        boxShadow: `0 0 10px ${color}`,
+                      }}
+                    >
+                      ✓
+                    </div>
+                  ) : (
+                    <div
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{
+                        backgroundColor: color,
+                        boxShadow: isWinning && showResults ? `0 0 8px ${color}` : 'none',
+                      }}
+                    />
+                  )}
+                  <span className={`text-sm font-semibold ${isVoted ? 'text-white' : isWinning && showResults ? 'text-lp-text' : ''}`}>
                     {opt.option_text}
+                    {isVoted && <span className="ml-2 text-xs font-bold opacity-80">Your vote</span>}
                   </span>
                 </div>
                 {showResults && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-lp-muted font-medium">{opt.vote_count}</span>
-                    <span className="text-base font-extrabold min-w-[3ch] text-right" style={{ color }}>
+                    <span className={`text-base font-extrabold min-w-[3ch] text-right ${isVoted ? 'text-white' : ''}`} style={{ color: isVoted ? undefined : color }}>
                       {pct}%
                     </span>
                   </div>
