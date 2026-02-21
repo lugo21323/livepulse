@@ -56,6 +56,7 @@ export default function PresenterLivePage() {
   const [fullscreenQR, setFullscreenQR] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [screenShare, setScreenShare] = useState(false);
+  const [showStopShareConfirm, setShowStopShareConfirm] = useState(false);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [msgReactionCounts, setMsgReactionCounts] = useState<Record<string, number>>({});
@@ -90,7 +91,7 @@ export default function PresenterLivePage() {
       if (e.key === '2') setActiveTab('qa');
       if (e.key === '3') setActiveTab('polls');
       if (e.key === 'f' || e.key === 'F') setFullscreenTab((prev) => prev ? null : activeTab);
-      if (e.key === 'Escape') { setFullscreenTab(null); setShowSettings(false); setShowEndConfirm(false); setFullscreenQR(false); }
+      if (e.key === 'Escape') { setFullscreenTab(null); setShowSettings(false); setShowEndConfirm(false); setFullscreenQR(false); setShowStopShareConfirm(false); }
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
@@ -315,6 +316,25 @@ export default function PresenterLivePage() {
         </div>
       )}
 
+      {/* Stop screen share confirmation */}
+      {showStopShareConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowStopShareConfirm(false)}>
+          <div className="bg-lp-surface border border-lp-border rounded-2xl p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+            <p className="text-3xl mb-3">🖥️</p>
+            <h3 className="text-lg font-bold mb-2">Stop Screen Share?</h3>
+            <p className="text-sm text-lp-muted mb-6">This will end your current screen share. You can start a new one anytime.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowStopShareConfirm(false)} className="flex-1 py-2.5 text-sm font-semibold rounded-lg border border-lp-border text-lp-muted hover:text-lp-text transition-colors">
+                Keep Sharing
+              </button>
+              <button onClick={() => { setShowStopShareConfirm(false); stopScreenShare(); }} className="flex-1 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors">
+                Stop
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fullscreen QR overlay */}
       {fullscreenQR && (
         <div className="fixed inset-0 z-50 bg-lp-bg flex flex-col items-center justify-center">
@@ -463,7 +483,7 @@ export default function PresenterLivePage() {
               <span className="text-xs text-lp-muted font-medium">online</span>
             </div>
             <button
-              onClick={screenShare ? stopScreenShare : startScreenShare}
+              onClick={screenShare ? () => setShowStopShareConfirm(true) : startScreenShare}
               className={`w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors ${screenShare ? 'text-lp-green bg-lp-green/10' : 'text-lp-muted hover:text-lp-accent hover:bg-lp-bg'}`}
               title={screenShare ? 'Stop screen share' : 'Share screen'}
             >
