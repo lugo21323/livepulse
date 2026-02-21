@@ -56,31 +56,40 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   const supabase = useRef(createSupabaseBrowser()).current;
   const lockedToBottom = useRef(true); // start locked
   const channelRef = useRef<any>(null);
+  const channelReady = useRef(false);
   // Keep a stable ref to the callback so channel doesn't tear down on re-renders
   const onMsgReactionRef = useRef(onMsgReaction);
   onMsgReactionRef.current = onMsgReaction;
 
+  // Helper: apply a reaction to local state
+  function applyReaction(mid: string, em: string) {
+    setLocalReactions((prev) => {
+      const msgReactions = { ...(prev[mid] || {}) };
+      msgReactions[em] = (msgReactions[em] || 0) + 1;
+      const updated = { ...prev, [mid]: msgReactions };
+      if (onMsgReactionRef.current) {
+        const emojiMap = updated[mid] || {};
+        const total = Object.values(emojiMap).reduce((s, c) => s + c, 0);
+        onMsgReactionRef.current(mid, total, { ...emojiMap });
+      }
+      return updated;
+    });
+  }
+
   // Subscribe to broadcast channel for cross-client emoji reactions
   useEffect(() => {
+    channelReady.current = false;
     const channel = supabase
-      .channel(`msg-reactions:${sessionId}`, { config: { broadcast: { self: true } } })
+      .channel(`msg-reactions:${sessionId}`)
       .on('broadcast', { event: 'reaction' }, (payload: any) => {
         const { messageId, emoji } = payload.payload as { messageId: string; emoji: string };
         if (messageId && emoji) {
-          setLocalReactions((prev) => {
-            const msgReactions = { ...(prev[messageId] || {}) };
-            msgReactions[emoji] = (msgReactions[emoji] || 0) + 1;
-            const updated = { ...prev, [messageId]: msgReactions };
-            if (onMsgReactionRef.current) {
-              const emojiMap = updated[messageId] || {};
-              const total = Object.values(emojiMap).reduce((s, c) => s + c, 0);
-              onMsgReactionRef.current(messageId, total, { ...emojiMap });
-            }
-            return updated;
-          });
+          applyReaction(messageId, emoji);
         }
       })
-      .subscribe();
+      .subscribe((status: string) => {
+        channelReady.current = status === 'SUBSCRIBED';
+      });
     channelRef.current = channel;
     return () => { supabase.removeChannel(channel); };
   }, [sessionId, supabase]);
@@ -191,12 +200,16 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   }
 
   function reactToMessage(messageId: string, emoji: string) {
-    // Broadcast to all clients — the subscription listener updates local state
-    channelRef.current?.send({
-      type: 'broadcast',
-      event: 'reaction',
-      payload: { messageId, emoji },
-    });
+    // Apply locally immediately so user sees own reaction
+    applyReaction(messageId, emoji);
+    // Broadcast to other clients
+    if (channelReady.current) {
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'reaction',
+        payload: { messageId, emoji },
+      });
+    }
     setShowReactionsFor(null);
   }
 

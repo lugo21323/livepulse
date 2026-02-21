@@ -4,97 +4,29 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface ScreenCaptureProps {
   className?: string;
-  onStop?: () => void;
-  autoStart?: boolean;
+  stream: MediaStream;
+  onStop: () => void;
 }
 
-export default function ScreenCapture({ className = '', onStop, autoStart = false }: ScreenCaptureProps) {
-  const [capturing, setCapturing] = useState(false);
+export default function ScreenCapture({ className = '', stream, onStop }: ScreenCaptureProps) {
   const [showStopConfirm, setShowStopConfirm] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const didAutoStart = useRef(false);
 
-  // Wire stream to video element after it mounts
+  // Wire the stream to the video element
   useEffect(() => {
-    if (capturing && videoRef.current && streamRef.current) {
-      videoRef.current.srcObject = streamRef.current;
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
     }
-  }, [capturing]);
-
-  const startCapture = useCallback(async () => {
-    setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      streamRef.current = stream;
-
-      // Handle user clicking "Stop sharing" in the browser bar
-      stream.getVideoTracks()[0].onended = () => {
-        doStop();
-      };
-
-      setCapturing(true);
-    } catch (err: any) {
-      if (err.name === 'NotAllowedError') {
-        // User cancelled the picker — notify parent so toggle resets
-        onStop?.();
-        return;
-      }
-      setError('Screen sharing failed. Make sure you\'re using a supported browser.');
-    }
-  }, [onStop]);
+  }, [stream]);
 
   const doStop = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
+    stream.getTracks().forEach((t) => t.stop());
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    setCapturing(false);
     setShowStopConfirm(false);
-    onStop?.();
-  }, [onStop]);
-
-  // Auto-start capture when autoStart prop is true (e.g. sidebar toggle)
-  useEffect(() => {
-    if (autoStart && !didAutoStart.current && !capturing) {
-      didAutoStart.current = true;
-      startCapture();
-    }
-  }, [autoStart, capturing, startCapture]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
-    };
-  }, []);
-
-  if (!capturing) {
-    return (
-      <div className={`flex flex-col items-center justify-center bg-lp-surface gap-4 ${className}`}>
-        <div className="text-center">
-          <p className="text-5xl mb-4">🖥️</p>
-          <p className="text-lp-text text-lg font-semibold mb-1">Share Your Screen</p>
-          <p className="text-lp-muted text-sm max-w-sm">
-            Share your PowerPoint, Keynote, browser, or any application running on your desktop
-          </p>
-        </div>
-        <button
-          onClick={startCapture}
-          className="px-6 py-3 bg-lp-accent rounded-xl text-sm font-bold text-white hover:bg-lp-accent/80 transition-colors"
-        >
-          Start Screen Share
-        </button>
-        {error && <p className="text-red-400 text-sm">{error}</p>}
-      </div>
-    );
-  }
+    onStop();
+  }, [stream, onStop]);
 
   return (
     <div className={`relative bg-black overflow-hidden ${className}`}>

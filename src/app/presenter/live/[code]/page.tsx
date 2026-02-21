@@ -56,6 +56,7 @@ export default function PresenterLivePage() {
   const [fullscreenQR, setFullscreenQR] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [screenShare, setScreenShare] = useState(false);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [msgReactionCounts, setMsgReactionCounts] = useState<Record<string, number>>({});
   const [msgReactionEmojis, setMsgReactionEmojis] = useState<Record<string, Record<string, number>>>({});
@@ -188,6 +189,29 @@ export default function PresenterLivePage() {
     // Update counts to 0 — triggers UPDATE events the realtime hook already handles
     await supabase.from('reactions').update({ count: 0 }).eq('session_id', session.id);
     setShowResetConfirm(false);
+  }
+
+  // Screen share: call getDisplayMedia directly in click handler (browser requires user gesture)
+  async function startScreenShare() {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      screenStreamRef.current = stream;
+      stream.getVideoTracks()[0].onended = () => {
+        screenStreamRef.current = null;
+        setScreenShare(false);
+      };
+      setScreenShare(true);
+    } catch {
+      // User cancelled picker — do nothing
+    }
+  }
+
+  function stopScreenShare() {
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
+    setScreenShare(false);
   }
 
   function cycleSidebarWidth() {
@@ -383,8 +407,8 @@ export default function PresenterLivePage() {
 
       {/* Main area - Slides / Screen Share */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        {screenShare ? (
-          <ScreenCapture className="flex-1" onStop={() => setScreenShare(false)} autoStart />
+        {screenShare && screenStreamRef.current ? (
+          <ScreenCapture className="flex-1" stream={screenStreamRef.current} onStop={stopScreenShare} />
         ) : session.slide_url ? (
           <SlideEmbed ref={slideRef} url={session.slide_url} className="flex-1" />
         ) : (
@@ -393,7 +417,7 @@ export default function PresenterLivePage() {
               <p className="text-5xl mb-4">📽️</p>
               <p className="text-lp-muted text-lg font-semibold">No slides attached</p>
               <div className="flex gap-3 mt-4 justify-center">
-                <button onClick={() => setScreenShare(true)} className="px-5 py-2.5 bg-lp-accent rounded-lg text-sm font-semibold text-white hover:bg-lp-accent/80 transition-colors">
+                <button onClick={startScreenShare} className="px-5 py-2.5 bg-lp-accent rounded-lg text-sm font-semibold text-white hover:bg-lp-accent/80 transition-colors">
                   🖥️ Share Screen
                 </button>
                 <button onClick={() => setShowSettings(true)} className="px-5 py-2.5 bg-lp-surface-light rounded-lg text-sm font-semibold text-lp-muted hover:text-lp-text border border-lp-border transition-colors">
@@ -439,7 +463,7 @@ export default function PresenterLivePage() {
               <span className="text-xs text-lp-muted font-medium">online</span>
             </div>
             <button
-              onClick={() => setScreenShare(!screenShare)}
+              onClick={screenShare ? stopScreenShare : startScreenShare}
               className={`w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors ${screenShare ? 'text-lp-green bg-lp-green/10' : 'text-lp-muted hover:text-lp-accent hover:bg-lp-bg'}`}
               title={screenShare ? 'Stop screen share' : 'Share screen'}
             >
