@@ -174,7 +174,7 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
             <button
               onClick={launchPulse}
               disabled={!prompt.trim()}
-              className="px-4 py-2 bg-lp-orange rounded-lg text-sm font-medium text-white disabled:opacity-40 hover:bg-lp-orange/80 transition-colors whitespace-nowrap"
+              className="px-4 py-2 bg-lp-accent rounded-lg text-sm font-medium text-white disabled:opacity-40 hover:bg-lp-accent/80 transition-colors whitespace-nowrap"
             >
               ✨ Pulse
             </button>

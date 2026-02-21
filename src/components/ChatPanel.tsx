@@ -49,20 +49,11 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   const [localReactions, setLocalReactions] = useState<Record<string, MessageReactions>>({});
   const [showReactionsFor, setShowReactionsFor] = useState<string | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const supabase = useRef(createSupabaseBrowser()).current;
-  const prevMessageCount = useRef(messages.length);
-
-  // Only auto-scroll when NEW messages arrive (not on reactions/replies)
-  useEffect(() => {
-    if (messages.length > prevMessageCount.current) {
-      // A new message was added — auto-scroll to bottom
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-    prevMessageCount.current = messages.length;
-  }, [messages.length]);
 
   // Track scroll position to show/hide jump-to-bottom button
   const handleScroll = useCallback(() => {
@@ -203,8 +194,10 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
     const displayContent = isReply ? parsed!.replyText : msg.content;
     const replyTarget = isReply ? parsed!.targetName : null;
 
+    const isArchiving = archivingId === msg.id;
+
     return (
-      <div key={msg.id} className="animate-slide-in group">
+      <div key={msg.id} className={`group ${isArchiving ? 'animate-archive-out' : 'animate-slide-in'}`}>
         <div className={`rounded-lg px-3 py-2 relative ${compact ? 'bg-lp-bg' : 'bg-lp-surface-light'} ${isStarred ? 'ring-1 ring-lp-accent/30' : ''}`}>
           {replyTarget && (
             <div className="text-[10px] text-lp-muted mb-0.5 flex items-center gap-1">
@@ -243,7 +236,10 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
               </button>
               {isPresenter && onArchive && (
                 <button
-                  onClick={() => onArchive(msg.id)}
+                  onClick={() => {
+                    setArchivingId(msg.id);
+                    setTimeout(() => { onArchive(msg.id); setArchivingId(null); }, 350);
+                  }}
                   className="text-sm text-lp-muted/40 hover:text-red-400 p-1 rounded hover:bg-lp-bg/50 transition-all"
                   title="Archive message"
                 >

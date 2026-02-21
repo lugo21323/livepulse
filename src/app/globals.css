@@ -84,6 +84,32 @@ body {
   animation: slideIn 0.3s ease-out;
 }
 
+/* Archive fade-out animation */
+@keyframes archiveOut {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    max-height: 200px;
+  }
+  60% {
+    opacity: 0;
+    transform: translateX(30px) scale(0.95);
+    max-height: 200px;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(30px) scale(0.95);
+    max-height: 0;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.animate-archive-out {
+  animation: archiveOut 0.35s ease-in forwards;
+  overflow: hidden;
+}
+
 .animate-pulse-dot {
   animation: pulse 2s infinite;
 }
