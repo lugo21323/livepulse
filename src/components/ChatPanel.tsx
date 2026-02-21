@@ -54,16 +54,27 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const supabase = useRef(createSupabaseBrowser()).current;
+  const lockedToBottom = useRef(true); // start locked
 
-  // Track scroll position to show/hide jump-to-bottom button
+  // Auto-scroll when new messages arrive IF locked to bottom
+  useEffect(() => {
+    if (lockedToBottom.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages.length]);
+
+  // Track scroll position: lock/unlock + show/hide arrow
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setShowScrollBtn(distanceFromBottom > 100);
+    const nearBottom = distanceFromBottom < 40;
+    lockedToBottom.current = nearBottom;
+    setShowScrollBtn(!nearBottom);
   }, []);
 
   function scrollToBottom() {
+    lockedToBottom.current = true;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }
 
@@ -220,13 +231,28 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
                   {isStarred ? '★' : '☆'}
                 </button>
               )}
-              <button
-                onClick={() => setShowReactionsFor(showReactionsFor === msg.id ? null : msg.id)}
-                className="text-sm text-lp-muted/40 hover:text-lp-text p-1 rounded hover:bg-lp-bg/50 transition-all"
-                title="React"
-              >
-                😊
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowReactionsFor(showReactionsFor === msg.id ? null : msg.id)}
+                  className="text-sm text-lp-muted/40 hover:text-lp-text p-1 rounded hover:bg-lp-bg/50 transition-all"
+                  title="React"
+                >
+                  😊
+                </button>
+                {showReactionsFor === msg.id && (
+                  <div className="absolute top-full right-0 mt-1 flex gap-1 p-1.5 bg-lp-surface rounded-lg border border-lp-border shadow-lg z-20">
+                    {CHAT_REACTIONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => reactToMessage(msg.id, emoji)}
+                        className="text-base hover:scale-125 transition-transform p-1"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => { setReplyToId(isReplying ? null : msg.id); setReplyText(''); }}
                 className={`text-sm p-1 rounded hover:bg-lp-bg/50 transition-all ${isReplying ? 'text-lp-accent' : 'text-lp-muted/40 hover:text-lp-text'}`}
@@ -248,20 +274,6 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
               )}
             </div>
           </div>
-
-          {showReactionsFor === msg.id && (
-            <div className="flex gap-1 mt-1.5 p-1.5 bg-lp-surface rounded-lg border border-lp-border w-fit">
-              {CHAT_REACTIONS.map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => reactToMessage(msg.id, emoji)}
-                  className="text-base hover:scale-125 transition-transform p-1"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          )}
 
           {hasReactions && (
             <div className="flex gap-1 mt-1.5 flex-wrap">
