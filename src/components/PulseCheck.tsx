@@ -102,10 +102,15 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
     const q = prompt.trim();
     if (!q) return;
 
-    // Create pulse poll (don't deactivate other polls - pulse is separate)
+    // Optimistic: show active immediately
+    setActive(true);
+    setResults({ up: 0, down: 0 });
+    const savedPrompt = q;
+    setPrompt('');
+
     const { data: poll } = await supabase
       .from('polls')
-      .insert({ session_id: sessionId, question: `PULSE:${q}`, is_active: true })
+      .insert({ session_id: sessionId, question: `PULSE:${savedPrompt}`, is_active: true })
       .select()
       .single();
 
@@ -115,10 +120,8 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
         { poll_id: poll.id, option_text: '👎', display_order: 1, color: '#ff6b9d' },
       ]);
       setPulseId(poll.id);
-      setActive(true);
-      setResults({ up: 0, down: 0 });
+      setPrompt(savedPrompt);
     }
-    setPrompt('');
   }
 
   async function votePulse(option: 'up' | 'down') {
@@ -143,7 +146,11 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
 
   async function closePulse() {
     if (!pulseId) return;
-    await supabase.from('polls').update({ is_active: false }).eq('id', pulseId);
+    // Optimistic: hide immediately
+    setActive(false);
+    const oldId = pulseId;
+    setPulseId(null);
+    await supabase.from('polls').update({ is_active: false }).eq('id', oldId);
   }
 
   // Presenter controls

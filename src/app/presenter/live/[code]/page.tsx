@@ -60,6 +60,7 @@ export default function PresenterLivePage() {
   const chatMessages = messages.filter((m) => !m.is_question);
   const qaMessages = messages.filter((m) => m.is_question);
   const totalReactions = reactions.reduce((sum, r) => sum + r.count, 0);
+  const isWide = sidebarWidth === '1/2';
 
   useEffect(() => {
     if (activeTab === 'chat') setLastSeenChat(chatMessages.length);
@@ -174,17 +175,6 @@ export default function PresenterLivePage() {
     setSidebarWidth(sizes[(idx + 1) % sizes.length]);
   }
 
-  function getIframe(): HTMLIFrameElement | null {
-    return document.querySelector('iframe[title*="Presentation"]');
-  }
-
-  function clickInIframe() {
-    const iframe = getIframe();
-    if (iframe) {
-      iframe.focus();
-    }
-  }
-
   if (loading || !session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-lp-bg">
@@ -239,7 +229,7 @@ export default function PresenterLivePage() {
       {/* Fullscreen panel */}
       {fullscreenTab && (
         <FullscreenPanel title={fullscreenLabel} messages={fullscreenTab === 'chat' ? chatMessages : messages} onClose={() => setFullscreenTab(null)}>
-          {fullscreenTab === 'chat' && <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact />}
+          {fullscreenTab === 'chat' && <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn />}
           {fullscreenTab === 'qa' && <QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
           {fullscreenTab === 'polls' && activePoll && (
             <div className="p-6"><PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults /></div>
@@ -265,33 +255,6 @@ export default function PresenterLivePage() {
 
         <FloatingReactions reactions={reactions} />
 
-        {/* Big slide nav buttons */}
-        {session.slide_url && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
-            <button
-              onClick={() => { clickInIframe(); }}
-              className="w-14 h-14 flex items-center justify-center rounded-full bg-lp-bg/90 backdrop-blur-sm border border-lp-border text-2xl text-lp-muted hover:text-lp-accent hover:border-lp-accent/50 hover:bg-lp-bg transition-all active:scale-90 shadow-lg"
-              title="Click, then use keyboard arrows. Previous slide."
-            >
-              ◀
-            </button>
-            <button
-              onClick={() => slideRef.current?.refocus()}
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-lp-accent/20 backdrop-blur-sm border border-lp-accent/40 text-sm text-lp-accent hover:bg-lp-accent/30 transition-all"
-              title="Focus slides for keyboard/remote control"
-            >
-              🎯
-            </button>
-            <button
-              onClick={() => { clickInIframe(); }}
-              className="w-14 h-14 flex items-center justify-center rounded-full bg-lp-bg/90 backdrop-blur-sm border border-lp-border text-2xl text-lp-muted hover:text-lp-accent hover:border-lp-accent/50 hover:bg-lp-bg transition-all active:scale-90 shadow-lg"
-              title="Click, then use keyboard arrows. Next slide."
-            >
-              ▶
-            </button>
-          </div>
-        )}
-
         {/* Total reactions counter */}
         {totalReactions > 0 && (
           <div className="absolute top-3 right-3 z-20 flex items-center gap-2 px-3 py-2 bg-lp-bg/90 backdrop-blur-sm border border-lp-border rounded-lg">
@@ -311,10 +274,11 @@ export default function PresenterLivePage() {
             <span className="text-sm font-bold truncate">{session.title}</span>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-lp-green animate-pulse-dot" />
-              <span className="text-sm font-bold text-lp-text">{onlineCount}</span>
-              <span className="text-xs text-lp-muted">online</span>
+            {/* Online count - bigger */}
+            <div className="flex items-center gap-1.5 bg-lp-bg/80 rounded-lg px-2.5 py-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-lp-green animate-pulse-dot" />
+              <span className="text-base font-extrabold text-lp-text">{onlineCount}</span>
+              <span className="text-xs text-lp-muted font-medium">online</span>
             </div>
             <button onClick={() => setShowSettings(true)} className="w-8 h-8 flex items-center justify-center rounded-lg text-base text-lp-muted hover:text-lp-accent hover:bg-lp-bg transition-colors" title="Session settings">
               ⚙️
@@ -322,18 +286,13 @@ export default function PresenterLivePage() {
           </div>
         </div>
 
-        {/* Toolbar: fullscreen, resize, end */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-lp-border bg-lp-bg/50">
-          <div className="flex items-center gap-1">
-            <button onClick={() => setFullscreenTab(activeTab)} className="px-3 py-1.5 text-sm font-semibold text-lp-muted hover:text-lp-accent hover:bg-lp-surface rounded-lg transition-all" title="Fullscreen (F)">
-              ⛶ Expand
-            </button>
-            <button onClick={cycleSidebarWidth} className="px-3 py-1.5 text-sm font-semibold text-lp-muted hover:text-lp-accent hover:bg-lp-surface rounded-lg transition-all" title="Resize sidebar">
-              👁️ {sidebarWidth}
-            </button>
-          </div>
-          <button onClick={() => setShowEndConfirm(true)} className="px-2.5 py-1 text-xs font-medium rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors">
-            End
+        {/* Toolbar: fullscreen, resize */}
+        <div className="flex items-center px-3 py-1.5 border-b border-lp-border bg-lp-bg/50 gap-1">
+          <button onClick={() => setFullscreenTab(activeTab)} className="px-3 py-1.5 text-sm font-semibold text-lp-muted hover:text-lp-accent hover:bg-lp-surface rounded-lg transition-all" title="Fullscreen (F)">
+            ⛶
+          </button>
+          <button onClick={cycleSidebarWidth} className="px-3 py-1.5 text-sm font-semibold text-lp-muted hover:text-lp-accent hover:bg-lp-surface rounded-lg transition-all" title="Resize sidebar">
+            ↔️ {sidebarWidth}
           </button>
         </div>
 
@@ -365,7 +324,7 @@ export default function PresenterLivePage() {
 
         {/* Tab content */}
         <div className="flex-1 overflow-hidden presenter-panel">
-          {activeTab === 'chat' && <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact />}
+          {activeTab === 'chat' && <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn={isWide} />}
           {activeTab === 'qa' && <QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
           {activeTab === 'polls' && (
             <div className="p-3 space-y-3 overflow-y-auto h-full">
@@ -407,8 +366,8 @@ export default function PresenterLivePage() {
                       {closedPolls.map((cp) => (
                         <div key={cp.id}>
                           <PollWidget pollId={cp.id} question={cp.question} options={cp.options} showLiveResults isClosed />
-                          <button onClick={() => reopenPoll(cp.id)} className="w-full mt-1 py-1.5 text-xs font-semibold text-lp-accent hover:text-lp-accent/80 transition-colors">
-                            🔄 Reopen Poll
+                          <button onClick={() => reopenPoll(cp.id)} className="w-full mt-1 py-2 text-sm font-semibold text-lp-green hover:text-lp-green/80 transition-colors">
+                            Open Poll
                           </button>
                         </div>
                       ))}
@@ -424,8 +383,17 @@ export default function PresenterLivePage() {
           )}
         </div>
 
-        {/* QR Code */}
-        <SidebarQR sessionCode={session.session_code} />
+        {/* QR + End session X in bottom-right */}
+        <div className="relative">
+          <SidebarQR sessionCode={session.session_code} />
+          <button
+            onClick={() => setShowEndConfirm(true)}
+            className="absolute bottom-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-xs text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-colors z-10"
+            title="End session"
+          >
+            ✕
+          </button>
+        </div>
       </div>
     </div>
   );

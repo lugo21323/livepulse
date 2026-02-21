@@ -11,14 +11,14 @@ interface ChatPanelProps {
   sessionId: string;
   authorName: string;
   compact?: boolean;
+  twoColumn?: boolean;
 }
 
-// Local reaction state (per-message, stored in memory for simplicity)
 interface MessageReactions {
   [emoji: string]: number;
 }
 
-export default function ChatPanel({ messages, sessionId, authorName, compact = false }: ChatPanelProps) {
+export default function ChatPanel({ messages, sessionId, authorName, compact = false, twoColumn = false }: ChatPanelProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -65,86 +65,88 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
     return localReactions[messageId] || {};
   }
 
+  function renderMessage(msg: Message) {
+    const reactions = getReactionCount(msg.id);
+    const hasReactions = Object.keys(reactions).length > 0;
+    const isReply = msg.content.startsWith('@');
+
+    return (
+      <div key={msg.id} className="animate-slide-in group">
+        <div className={`rounded-lg px-3 py-2 relative ${compact ? 'bg-lp-bg' : 'bg-lp-surface-light'}`}>
+          {isReply && (
+            <div className="text-[10px] text-lp-muted mb-0.5 flex items-center gap-1">
+              <span>↩</span> replying
+            </div>
+          )}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <span className="text-xs font-medium text-lp-accent">{msg.author_name}</span>
+              <p className="text-sm text-lp-text mt-0.5">{msg.content}</p>
+            </div>
+            {/* Action buttons - always visible with subtle style */}
+            <div className="flex gap-1 shrink-0 mt-0.5">
+              <button
+                onClick={() => setShowReactionsFor(showReactionsFor === msg.id ? null : msg.id)}
+                className="text-sm text-lp-muted/50 hover:text-lp-text p-1 rounded hover:bg-lp-bg/50 transition-all"
+                title="React"
+              >
+                😊
+              </button>
+              <button
+                onClick={() => setReplyTo(msg)}
+                className="text-sm text-lp-muted/50 hover:text-lp-text p-1 rounded hover:bg-lp-bg/50 transition-all"
+                title="Reply"
+              >
+                ↩
+              </button>
+            </div>
+          </div>
+
+          {showReactionsFor === msg.id && (
+            <div className="flex gap-1 mt-1.5 p-1.5 bg-lp-surface rounded-lg border border-lp-border w-fit">
+              {CHAT_REACTIONS.map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => reactToMessage(msg.id, emoji)}
+                  className="text-base hover:scale-125 transition-transform p-1"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {hasReactions && (
+            <div className="flex gap-1 mt-1.5 flex-wrap">
+              {Object.entries(reactions).map(([emoji, count]) => (
+                <span
+                  key={emoji}
+                  className="inline-flex items-center gap-0.5 text-xs bg-lp-surface-light rounded-full px-1.5 py-0.5 border border-lp-border"
+                >
+                  {emoji} <span className="text-lp-muted">{count}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div className={`flex-1 overflow-y-auto p-3 ${twoColumn ? 'columns-2 gap-3 space-y-0' : 'space-y-2'}`}>
         {messages.length === 0 && (
           <p className="text-center text-lp-muted text-sm py-8">No messages yet. Say hi!</p>
         )}
-        {messages.map((msg) => {
-          const reactions = getReactionCount(msg.id);
-          const hasReactions = Object.keys(reactions).length > 0;
-          const isReply = msg.content.startsWith('@');
-
-          return (
-            <div key={msg.id} className="animate-slide-in group">
-              <div className={`rounded-lg px-3 py-2 relative ${compact ? 'bg-lp-bg' : 'bg-lp-surface-light'}`}>
-                {/* Reply indicator */}
-                {isReply && (
-                  <div className="text-[10px] text-lp-muted mb-0.5 flex items-center gap-1">
-                    <span>↩</span> replying
-                  </div>
-                )}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className="text-xs font-medium text-lp-accent">{msg.author_name}</span>
-                    <p className="text-sm text-lp-text mt-0.5">{msg.content}</p>
-                  </div>
-                  {/* Hover actions */}
-                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
-                    <button
-                      onClick={() => setShowReactionsFor(showReactionsFor === msg.id ? null : msg.id)}
-                      className="text-xs text-lp-muted hover:text-lp-text p-1 rounded"
-                      title="React"
-                    >
-                      😊
-                    </button>
-                    <button
-                      onClick={() => setReplyTo(msg)}
-                      className="text-xs text-lp-muted hover:text-lp-text p-1 rounded"
-                      title="Reply"
-                    >
-                      ↩
-                    </button>
-                  </div>
-                </div>
-
-                {/* Reaction picker */}
-                {showReactionsFor === msg.id && (
-                  <div className="flex gap-1 mt-1.5 p-1 bg-lp-surface rounded-lg border border-lp-border w-fit">
-                    {CHAT_REACTIONS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        onClick={() => reactToMessage(msg.id, emoji)}
-                        className="text-sm hover:scale-125 transition-transform p-0.5"
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Displayed reactions */}
-                {hasReactions && (
-                  <div className="flex gap-1 mt-1.5 flex-wrap">
-                    {Object.entries(reactions).map(([emoji, count]) => (
-                      <span
-                        key={emoji}
-                        className="inline-flex items-center gap-0.5 text-xs bg-lp-surface-light rounded-full px-1.5 py-0.5 border border-lp-border"
-                      >
-                        {emoji} <span className="text-lp-muted">{count}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {messages.map((msg) => (
+          <div key={msg.id} className={twoColumn ? 'break-inside-avoid mb-2' : ''}>
+            {renderMessage(msg)}
+          </div>
+        ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* Reply indicator */}
       {replyTo && (
         <div className="px-3 pt-2 flex items-center gap-2 text-xs text-lp-muted">
           <span>↩ Replying to <span className="text-lp-accent">{replyTo.author_name}</span></span>

@@ -278,7 +278,6 @@ export default function AudienceSessionPage() {
               {rating > 0 && (
                 <p className="text-lp-green text-sm font-medium">
                   {rating === 5 ? '🎉 Amazing!' : rating >= 4 ? '👍 Great!' : rating >= 3 ? 'Thanks!' : 'Thanks for your feedback!'}
-                  <span className="text-lp-muted font-normal ml-2">Tap to change</span>
                 </p>
               )}
             </div>
