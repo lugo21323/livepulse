@@ -44,6 +44,7 @@ export default function SessionSettingsModal({
   const [instagram, setInstagram] = useState(currentInstagram);
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<'general' | 'contact' | 'resources'>('general');
+  const [showImageHelp, setShowImageHelp] = useState(false);
 
   async function save() {
     setSaving(true);
@@ -117,9 +118,28 @@ export default function SessionSettingsModal({
           {activeSection === 'contact' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-lp-text mb-1.5">Headshot URL</label>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <label className="text-sm font-semibold text-lp-text">Headshot URL</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowImageHelp(!showImageHelp)}
+                    className="w-5 h-5 rounded-full bg-lp-accent/20 text-lp-accent text-[10px] font-bold flex items-center justify-center hover:bg-lp-accent/30 transition-colors"
+                    title="Image URL help"
+                  >
+                    ?
+                  </button>
+                </div>
+                {showImageHelp && (
+                  <div className="mb-3 p-3 bg-lp-bg rounded-xl border border-lp-accent/30 text-xs text-lp-muted space-y-1.5">
+                    <p className="font-semibold text-lp-text">How to get an image URL:</p>
+                    <p>• <strong>Imgur</strong> — Upload at imgur.com, right-click image → Copy image address</p>
+                    <p>• <strong>LinkedIn</strong> — Right-click your profile photo → Copy image address</p>
+                    <p>• <strong>Google Drive</strong> — Upload, Share as &quot;Anyone with link&quot;, use: <span className="text-lp-accent">https://drive.google.com/uc?id=YOUR_FILE_ID</span></p>
+                    <p>• <strong>Any website</strong> — Right-click a photo of you → Copy image address</p>
+                    <p className="text-red-400/80 pt-1">⚠ SharePoint/OneDrive files require login and won&apos;t work as image URLs</p>
+                  </div>
+                )}
                 <input type="url" value={headshotUrl} onChange={(e) => setHeadshotUrl(e.target.value)} placeholder="https://your-photo.jpg" className={inputClass} />
-                <p className="text-xs text-lp-muted mt-1">Link to your profile photo (use LinkedIn, website, or image host)</p>
                 {headshotUrl && (
                   <div className="mt-2 flex items-center gap-3">
                     <img src={headshotUrl} alt="Preview" className="w-12 h-12 rounded-full object-cover border border-lp-border" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />

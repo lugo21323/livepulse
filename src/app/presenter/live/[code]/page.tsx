@@ -53,6 +53,8 @@ export default function PresenterLivePage() {
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
   const [fullscreenQR, setFullscreenQR] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const pollsContainerRef = useRef<HTMLDivElement>(null);
 
   const [lastSeenChat, setLastSeenChat] = useState(0);
   const [lastSeenQA, setLastSeenQA] = useState(0);
@@ -171,7 +173,15 @@ export default function PresenterLivePage() {
     if (poll) {
       setActivePoll(poll);
       setClosedPolls((prev) => prev.filter((cp) => cp.id !== pollId));
+      // Scroll polls container to top so user sees the reopened poll
+      setTimeout(() => pollsContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     }
+  }
+
+  async function resetReactions() {
+    if (!session) return;
+    await supabase.from('reactions').delete().eq('session_id', session.id);
+    setShowResetConfirm(false);
   }
 
   function cycleSidebarWidth() {
@@ -242,6 +252,25 @@ export default function PresenterLivePage() {
         </div>
       )}
 
+      {/* Reset reactions confirmation */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowResetConfirm(false)}>
+          <div className="bg-lp-surface border border-lp-border rounded-2xl p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+            <p className="text-3xl mb-3">↺</p>
+            <h3 className="text-lg font-bold mb-2">Reset Reactions?</h3>
+            <p className="text-sm text-lp-muted mb-6">This will clear all {totalReactions} audience reactions. This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowResetConfirm(false)} className="flex-1 py-2.5 text-sm font-semibold rounded-lg border border-lp-border text-lp-muted hover:text-lp-text transition-colors">
+                Cancel
+              </button>
+              <button onClick={resetReactions} className="flex-1 py-2.5 text-sm font-semibold rounded-lg bg-lp-accent text-white hover:bg-lp-accent/80 transition-colors">
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fullscreen QR overlay */}
       {fullscreenQR && (
         <div className="fixed inset-0 z-50 bg-lp-bg flex flex-col items-center justify-center">
@@ -276,6 +305,30 @@ export default function PresenterLivePage() {
           messages={messages}
           onClose={() => setFullscreenTab(null)}
           chatContent={<ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact twoColumn isPresenter archivedIds={showArchived ? undefined : archivedIds} onArchive={archiveMessage} />}
+          featuredContent={(() => {
+            const repliedToNames = new Set<string>();
+            chatMessages.forEach((m) => {
+              if (m.content.startsWith('@')) {
+                const nm = m.content.match(/^@([^:]+):/);
+                if (nm) repliedToNames.add(nm[1]);
+              }
+            });
+            const feat = chatMessages.filter((m) => repliedToNames.has(m.author_name) && !m.content.startsWith('@')).slice(-30);
+            return (
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {feat.length === 0 ? (
+                  <p className="text-center text-lp-muted text-sm py-16">Comments that get replies will appear here as featured</p>
+                ) : (
+                  feat.map((msg) => (
+                    <div key={msg.id} className="bg-lp-surface rounded-xl p-4 border border-lp-border animate-slide-in">
+                      <span className="text-xs font-medium text-lp-accent">{msg.author_name}</span>
+                      <p className="text-base text-lp-text mt-1">{msg.content}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            );
+          })()}
           qaContent={<QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
           pollContent={
             activePoll ? (
@@ -309,12 +362,19 @@ export default function PresenterLivePage() {
 
         <FloatingReactions reactions={reactions} />
 
-        {/* Total reactions counter */}
+        {/* Total reactions counter + reset */}
         {totalReactions > 0 && (
           <div className="absolute top-3 right-3 z-20 flex items-center gap-2 px-3 py-2 bg-lp-bg/90 backdrop-blur-sm border border-lp-border rounded-lg">
             <span className="text-sm">🔥</span>
             <span className="text-lg font-extrabold text-lp-text">{totalReactions}</span>
             <span className="text-xs text-lp-muted font-medium">reactions</span>
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="ml-1 text-sm text-lp-muted/50 hover:text-lp-accent transition-colors"
+              title="Reset reactions"
+            >
+              ↺
+            </button>
           </div>
         )}
       </div>
@@ -403,7 +463,7 @@ export default function PresenterLivePage() {
           )}
           {activeTab === 'qa' && <QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
           {activeTab === 'polls' && (
-            <div className="p-3 space-y-3 overflow-y-auto h-full">
+            <div ref={pollsContainerRef} className="p-3 space-y-3 overflow-y-auto h-full">
               <PulseCheck sessionId={session.id} isPresenter />
               <div className="border-t border-lp-border pt-3">
                 {!showPollCreator && (

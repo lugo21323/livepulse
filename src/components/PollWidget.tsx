@@ -30,10 +30,10 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
   const maxVotes = Math.max(...options.map((o) => o.vote_count), 1);
 
   async function vote(optionId: string) {
-    if (voted || voting || isClosed) return;
+    if (voting || isClosed) return;
     setVoting(true);
 
-    // OPTIMISTIC: Show result immediately — don't wait for RPC
+    // OPTIMISTIC: Show result immediately
     setVoted(optionId);
     localStorage.setItem(`lp_voted_${pollId}`, optionId);
 
@@ -45,9 +45,14 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
         p_voter_id: voterId,
       });
     } catch {
-      // Vote is already shown optimistically — keep it
+      // Vote is already shown optimistically
     }
     setVoting(false);
+  }
+
+  function changeVote() {
+    setVoted(null);
+    localStorage.removeItem(`lp_voted_${pollId}`);
   }
 
   return (
@@ -81,7 +86,6 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
               } ${isVoted ? 'border-2' : 'border border-lp-border'}`}
               style={{
                 borderColor: isVoted ? color : undefined,
-                boxShadow: isVoted ? `0 0 20px ${color}40, 0 0 0 3px ${color}30, inset 0 0 30px ${color}08` : undefined,
                 backgroundColor: isVoted ? `${color}12` : 'rgba(30, 30, 46, 0.8)',
               }}
             >
@@ -104,10 +108,7 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
                   {isVoted ? (
                     <div
                       className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
-                      style={{
-                        backgroundColor: color,
-                        boxShadow: `0 0 10px ${color}`,
-                      }}
+                      style={{ backgroundColor: color }}
                     >
                       ✓
                     </div>
@@ -139,10 +140,16 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
         })}
       </div>
 
-      {/* Vote confirmation banner */}
-      {voted && !showLiveResults && (
-        <div className="mt-3 py-2 px-3 rounded-lg bg-lp-green/10 border border-lp-green/30 text-center">
+      {/* Vote confirmation + change vote */}
+      {voted && !showLiveResults && !isClosed && (
+        <div className="mt-3 flex items-center justify-between py-2 px-3 rounded-lg bg-lp-green/10 border border-lp-green/30">
           <span className="text-sm font-semibold text-lp-green">✓ Vote submitted!</span>
+          <button
+            onClick={changeVote}
+            className="text-xs font-medium text-lp-muted hover:text-lp-accent transition-colors"
+          >
+            Change vote
+          </button>
         </div>
       )}
 
