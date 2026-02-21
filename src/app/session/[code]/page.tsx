@@ -44,7 +44,8 @@ export default function AudienceSessionPage() {
   const [activeView, setActiveView] = useState<ActiveView>('chat');
   const [pollQuestion, setPollQuestion] = useState('');
   const [rating, setRating] = useState(0);
-  const [ratedAlready, setRatedAlready] = useState(false);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   const supabase = useRef(createSupabaseBrowser()).current;
 
@@ -56,15 +57,29 @@ export default function AudienceSessionPage() {
   }, [activePoll, supabase]);
 
   async function submitRating(stars: number) {
-    if (!session || ratedAlready) return;
+    if (!session || submittingRating) return;
+    setSubmittingRating(true);
     setRating(stars);
     const voterId = getVoterId();
-    await supabase.from('ratings').insert({
-      session_id: session.id,
-      rating: stars,
-      voter_id: voterId,
-    });
-    setRatedAlready(true);
+
+    // Upsert - update if already exists for this voter
+    const { data: existing } = await supabase
+      .from('ratings')
+      .select('id')
+      .eq('session_id', session.id)
+      .eq('voter_id', voterId)
+      .single();
+
+    if (existing) {
+      await supabase.from('ratings').update({ rating: stars }).eq('id', existing.id);
+    } else {
+      await supabase.from('ratings').insert({
+        session_id: session.id,
+        rating: stars,
+        voter_id: voterId,
+      });
+    }
+    setSubmittingRating(false);
   }
 
   if (loading) {
@@ -127,9 +142,9 @@ export default function AudienceSessionPage() {
       {/* Tab selector */}
       <div className="flex border-b border-lp-border mx-2 mt-1">
         {([
-          { key: 'chat', label: `Chat` },
-          { key: 'qa', label: `Q&A` },
-          { key: 'poll', label: `Poll` },
+          { key: 'chat', label: 'Chat' },
+          { key: 'qa', label: 'Q&A' },
+          { key: 'poll', label: 'Poll' },
           ...(resourceUrl ? [{ key: 'resources', label: 'Resources' }] : []),
           { key: 'rate', label: 'Rate' },
         ] as { key: ActiveView; label: string }[]).map((tab) => (
@@ -208,19 +223,24 @@ export default function AudienceSessionPage() {
                   <button
                     key={star}
                     onClick={() => submitRating(star)}
-                    disabled={ratedAlready}
-                    className={`text-4xl transition-all ${
-                      star <= rating
+                    onMouseEnter={() => setHoverRating(star)}
+                    onMouseLeave={() => setHoverRating(0)}
+                    disabled={submittingRating}
+                    className={`text-4xl transition-all hover:scale-125 active:scale-95 ${
+                      star <= (hoverRating || rating)
                         ? 'scale-110'
                         : 'opacity-30 hover:opacity-60'
-                    } ${ratedAlready ? 'cursor-default' : 'hover:scale-125 active:scale-95'}`}
+                    }`}
                   >
                     ⭐
                   </button>
                 ))}
               </div>
-              {ratedAlready && (
-                <p className="text-lp-green text-sm font-medium">Thanks for your rating!</p>
+              {rating > 0 && (
+                <p className="text-lp-green text-sm font-medium">
+                  {rating === 5 ? '🎉 Amazing!' : rating >= 4 ? '👍 Great!' : rating >= 3 ? 'Thanks!' : 'Thanks for your feedback!'}
+                  <span className="text-lp-muted font-normal ml-2">Tap to change</span>
+                </p>
               )}
             </div>
             {contactInfo && (

@@ -22,6 +22,27 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
   const [pulseId, setPulseId] = useState<string | null>(null);
   const supabase = useRef(createSupabaseBrowser()).current;
 
+  // On mount, check if there's already an active pulse poll
+  useEffect(() => {
+    async function checkExisting() {
+      const { data: polls } = await supabase
+        .from('polls')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('is_active', true);
+
+      if (polls) {
+        const pulse = polls.find((p: any) => p.question?.startsWith('PULSE:'));
+        if (pulse) {
+          setPulseId(pulse.id);
+          setPrompt((pulse as any).question.replace('PULSE:', '').trim());
+          setActive(true);
+        }
+      }
+    }
+    checkExisting();
+  }, [sessionId, supabase]);
+
   // Listen for pulse check polls (polls with question starting with "PULSE:")
   useEffect(() => {
     const channel = supabase
@@ -42,26 +63,29 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
             setActive(true);
             setVoted(false);
             setResults({ up: 0, down: 0 });
-          } else if (payload.eventType === 'UPDATE' && !poll.is_active) {
-            if (poll.id === pulseId) {
-              // Keep showing results for 5 seconds then hide
-              setTimeout(() => {
-                setActive(false);
-                setPulseId(null);
-              }, 5000);
-            }
+          } else if (payload.eventType === 'UPDATE' && poll.question?.startsWith('PULSE:') && !poll.is_active) {
+            // Keep showing results for 5 seconds then hide
+            setTimeout(() => {
+              setActive(false);
+              setPulseId(null);
+            }, 5000);
           }
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [sessionId, supabase, pulseId]);
+  }, [sessionId, supabase]);
 
   // Poll for results if we have an active pulse
   useEffect(() => {
     if (!pulseId) return;
-    const interval = setInterval(async () => {
+    // Fetch immediately
+    fetchResults();
+    const interval = setInterval(fetchResults, 1000);
+    return () => clearInterval(interval);
+
+    async function fetchResults() {
       const { data } = await supabase
         .from('poll_options')
         .select('option_text, vote_count')
@@ -71,22 +95,14 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
         const down = data.find((o: any) => o.option_text === '👎')?.vote_count ?? 0;
         setResults({ up, down });
       }
-    }, 1000);
-    return () => clearInterval(interval);
+    }
   }, [pulseId, supabase]);
 
   async function launchPulse() {
     const q = prompt.trim();
     if (!q) return;
 
-    // Deactivate existing active polls
-    await supabase
-      .from('polls')
-      .update({ is_active: false })
-      .eq('session_id', sessionId)
-      .eq('is_active', true);
-
-    // Create pulse poll
+    // Create pulse poll (don't deactivate other polls - pulse is separate)
     const { data: poll } = await supabase
       .from('polls')
       .insert({ session_id: sessionId, question: `PULSE:${q}`, is_active: true })
@@ -153,7 +169,7 @@ export default function PulseCheck({ sessionId, isPresenter = false }: PulseChec
               disabled={!prompt.trim()}
               className="px-4 py-2 bg-lp-orange rounded-lg text-sm font-medium text-white disabled:opacity-40 hover:bg-lp-orange/80 transition-colors whitespace-nowrap"
             >
-              🫀 Pulse Check
+              🫀 Pulse
             </button>
           </div>
         ) : (

@@ -45,10 +45,10 @@ export default function PresenterLivePage() {
   const [loading, setLoading] = useState(true);
   const [fullscreenTab, setFullscreenTab] = useState<SidebarTab | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState<SidebarWidth>('1/4');
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState<SidebarWidth>('1/3');
   const [closedPolls, setClosedPolls] = useState<ClosedPoll[]>([]);
 
-  // Track previously seen message counts for notification badges
   const [lastSeenChat, setLastSeenChat] = useState(0);
   const [lastSeenQA, setLastSeenQA] = useState(0);
 
@@ -59,21 +59,16 @@ export default function PresenterLivePage() {
 
   const chatMessages = messages.filter((m) => !m.is_question);
   const qaMessages = messages.filter((m) => m.is_question);
-
-  // Calculate total reactions across all emojis
   const totalReactions = reactions.reduce((sum, r) => sum + r.count, 0);
 
-  // Update last seen when switching tabs
   useEffect(() => {
     if (activeTab === 'chat') setLastSeenChat(chatMessages.length);
     if (activeTab === 'qa') setLastSeenQA(qaMessages.length);
   }, [activeTab, chatMessages.length, qaMessages.length]);
 
-  // Notification counts
   const newChatCount = activeTab !== 'chat' ? Math.max(0, chatMessages.length - lastSeenChat) : 0;
   const newQACount = activeTab !== 'qa' ? Math.max(0, qaMessages.length - lastSeenQA) : 0;
 
-  // Keyboard shortcuts
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
@@ -81,14 +76,12 @@ export default function PresenterLivePage() {
       if (e.key === '2') setActiveTab('qa');
       if (e.key === '3') setActiveTab('polls');
       if (e.key === 'f' || e.key === 'F') setFullscreenTab((prev) => prev ? null : activeTab);
-      if (e.key === 'Escape') { setFullscreenTab(null); setShowSettings(false); }
-      if (e.key === 'r' || e.key === 'R') slideRef.current?.refocus();
+      if (e.key === 'Escape') { setFullscreenTab(null); setShowSettings(false); setShowEndConfirm(false); }
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [activeTab]);
 
-  // Load session + all polls (active + closed)
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -104,7 +97,6 @@ export default function PresenterLivePage() {
       if (!data) { router.replace('/presenter'); return; }
       setSession(data);
 
-      // Load active poll
       const { data: poll } = await supabase
         .from('polls')
         .select('*')
@@ -113,7 +105,6 @@ export default function PresenterLivePage() {
         .single();
       if (poll) setActivePoll(poll);
 
-      // Load closed polls with their options
       const { data: closed } = await supabase
         .from('polls')
         .select('*')
@@ -124,7 +115,7 @@ export default function PresenterLivePage() {
       if (closed && closed.length > 0) {
         const pollsWithOptions: ClosedPoll[] = [];
         for (const p of closed) {
-          if ((p as any).question?.startsWith('PULSE:')) continue; // skip closed pulse checks
+          if ((p as any).question?.startsWith('PULSE:')) continue;
           const { data: opts } = await supabase
             .from('poll_options')
             .select('*')
@@ -157,7 +148,6 @@ export default function PresenterLivePage() {
     if (!activePoll) return;
     await supabase.from('polls').update({ is_active: false }).eq('id', activePoll.id);
 
-    // Move to closed polls list with current options
     if (!(activePoll as any).question?.startsWith('PULSE:')) {
       setClosedPolls((prev) => [{
         id: activePoll.id,
@@ -165,14 +155,34 @@ export default function PresenterLivePage() {
         options: pollOptions,
       }, ...prev]);
     }
-
     setActivePoll(null);
   }, [activePoll, supabase, pollOptions]);
+
+  async function reopenPoll(pollId: string) {
+    if (activePoll) await closePoll();
+    await supabase.from('polls').update({ is_active: true }).eq('id', pollId);
+    const { data: poll } = await supabase.from('polls').select('*').eq('id', pollId).single();
+    if (poll) {
+      setActivePoll(poll);
+      setClosedPolls((prev) => prev.filter((cp) => cp.id !== pollId));
+    }
+  }
 
   function cycleSidebarWidth() {
     const sizes: SidebarWidth[] = ['1/4', '1/3', '1/2'];
     const idx = sizes.indexOf(sidebarWidth);
     setSidebarWidth(sizes[(idx + 1) % sizes.length]);
+  }
+
+  function getIframe(): HTMLIFrameElement | null {
+    return document.querySelector('iframe[title*="Presentation"]');
+  }
+
+  function clickInIframe() {
+    const iframe = getIframe();
+    if (iframe) {
+      iframe.focus();
+    }
   }
 
   if (loading || !session) {
@@ -202,28 +212,37 @@ export default function PresenterLivePage() {
         />
       )}
 
-      {/* Fullscreen panel overlay */}
-      {fullscreenTab && (
-        <FullscreenPanel
-          title={fullscreenLabel}
-          messages={fullscreenTab === 'chat' ? chatMessages : messages}
-          onClose={() => setFullscreenTab(null)}
-        >
-          {fullscreenTab === 'chat' && (
-            <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact />
-          )}
-          {fullscreenTab === 'qa' && (
-            <QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />
-          )}
-          {fullscreenTab === 'polls' && activePoll && (
-            <div className="p-6">
-              <PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults />
+      {/* End session confirmation */}
+      {showEndConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowEndConfirm(false)}>
+          <div className="bg-lp-surface border border-lp-border rounded-2xl p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+            <p className="text-3xl mb-3">⚠️</p>
+            <h3 className="text-lg font-bold mb-2">End Session?</h3>
+            <p className="text-sm text-lp-muted mb-6">This will disconnect all audience members and close the session permanently.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowEndConfirm(false)} className="flex-1 py-2.5 text-sm font-semibold rounded-lg border border-lp-border text-lp-muted hover:text-lp-text transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => { setShowEndConfirm(false); endSession(); }} className="flex-1 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors">
+                End Session
+              </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen panel */}
+      {fullscreenTab && (
+        <FullscreenPanel title={fullscreenLabel} messages={fullscreenTab === 'chat' ? chatMessages : messages} onClose={() => setFullscreenTab(null)}>
+          {fullscreenTab === 'chat' && <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact />}
+          {fullscreenTab === 'qa' && <QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
+          {fullscreenTab === 'polls' && activePoll && (
+            <div className="p-6"><PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults /></div>
           )}
         </FullscreenPanel>
       )}
 
-      {/* Main area - Slides with floating reactions */}
+      {/* Main area - Slides */}
       <div className="flex-1 flex flex-col min-w-0 relative">
         {session.slide_url ? (
           <SlideEmbed ref={slideRef} url={session.slide_url} className="flex-1" />
@@ -232,39 +251,41 @@ export default function PresenterLivePage() {
             <div className="text-center">
               <p className="text-5xl mb-4">📽️</p>
               <p className="text-lp-muted text-lg font-semibold">No slides attached</p>
-              <button
-                onClick={() => setShowSettings(true)}
-                className="mt-3 px-5 py-2 bg-lp-accent rounded-lg text-sm font-semibold text-white hover:bg-lp-accent/80 transition-colors"
-              >
+              <button onClick={() => setShowSettings(true)} className="mt-3 px-5 py-2 bg-lp-accent rounded-lg text-sm font-semibold text-white hover:bg-lp-accent/80 transition-colors">
                 + Add Slide URL
               </button>
             </div>
           </div>
         )}
 
-        {/* Floating emoji reactions over the slides */}
         <FloatingReactions reactions={reactions} />
 
-        {/* Bottom controls overlay */}
-        <div className="absolute bottom-3 left-3 flex items-center gap-2 z-20">
-          {/* Re-center button */}
-          <button
-            onClick={() => slideRef.current?.refocus()}
-            className="px-3 py-2 bg-lp-bg/90 backdrop-blur-sm border border-lp-border rounded-lg text-sm font-semibold text-lp-muted hover:text-lp-accent hover:border-lp-accent/50 transition-colors"
-            title="Click to focus slides for keyboard/remote control (R)"
-          >
-            🎯 Focus Slides <span className="text-[10px] ml-1 opacity-60">R</span>
-          </button>
-
-          {/* Settings button */}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="px-3 py-2 bg-lp-bg/90 backdrop-blur-sm border border-lp-border rounded-lg text-sm font-semibold text-lp-muted hover:text-lp-accent hover:border-lp-accent/50 transition-colors"
-            title="Session settings"
-          >
-            ⚙️
-          </button>
-        </div>
+        {/* Big slide nav buttons */}
+        {session.slide_url && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
+            <button
+              onClick={() => { clickInIframe(); }}
+              className="w-14 h-14 flex items-center justify-center rounded-full bg-lp-bg/90 backdrop-blur-sm border border-lp-border text-2xl text-lp-muted hover:text-lp-accent hover:border-lp-accent/50 hover:bg-lp-bg transition-all active:scale-90 shadow-lg"
+              title="Click, then use keyboard arrows. Previous slide."
+            >
+              ◀
+            </button>
+            <button
+              onClick={() => slideRef.current?.refocus()}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-lp-accent/20 backdrop-blur-sm border border-lp-accent/40 text-sm text-lp-accent hover:bg-lp-accent/30 transition-all"
+              title="Focus slides for keyboard/remote control"
+            >
+              🎯
+            </button>
+            <button
+              onClick={() => { clickInIframe(); }}
+              className="w-14 h-14 flex items-center justify-center rounded-full bg-lp-bg/90 backdrop-blur-sm border border-lp-border text-2xl text-lp-muted hover:text-lp-accent hover:border-lp-accent/50 hover:bg-lp-bg transition-all active:scale-90 shadow-lg"
+              title="Click, then use keyboard arrows. Next slide."
+            >
+              ▶
+            </button>
+          </div>
+        )}
 
         {/* Total reactions counter */}
         {totalReactions > 0 && (
@@ -284,28 +305,34 @@ export default function PresenterLivePage() {
             <div className="w-7 h-7 rounded-md bg-gradient-to-br from-lp-accent to-lp-pink flex items-center justify-center text-sm">⚡</div>
             <span className="text-sm font-bold truncate">{session.title}</span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Sidebar width toggle */}
-            <button
-              onClick={cycleSidebarWidth}
-              className="px-2 py-1 text-xs font-semibold text-lp-muted hover:text-lp-accent rounded border border-lp-border hover:border-lp-accent/50 transition-colors"
-              title="Resize sidebar"
-            >
-              {sidebarWidth}
-            </button>
-            {/* Settings */}
-            <button
-              onClick={() => setShowSettings(true)}
-              className="px-2 py-1 text-xs text-lp-muted hover:text-lp-accent transition-colors"
-              title="Session settings"
-            >
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-lp-green animate-pulse-dot" />
+              <span className="text-sm font-bold text-lp-text">{onlineCount}</span>
+              <span className="text-xs text-lp-muted">online</span>
+            </div>
+            <button onClick={() => setShowSettings(true)} className="w-8 h-8 flex items-center justify-center rounded-lg text-base text-lp-muted hover:text-lp-accent hover:bg-lp-bg transition-colors" title="Session settings">
               ⚙️
             </button>
-            {/* End session - moved away from other buttons */}
           </div>
         </div>
 
-        {/* Tabs with notification badges */}
+        {/* Toolbar: fullscreen, resize, end */}
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-lp-border bg-lp-bg/50">
+          <div className="flex items-center gap-1">
+            <button onClick={() => setFullscreenTab(activeTab)} className="px-3 py-1.5 text-sm font-semibold text-lp-muted hover:text-lp-accent hover:bg-lp-surface rounded-lg transition-all" title="Fullscreen (F)">
+              ⛶ Expand
+            </button>
+            <button onClick={cycleSidebarWidth} className="px-3 py-1.5 text-sm font-semibold text-lp-muted hover:text-lp-accent hover:bg-lp-surface rounded-lg transition-all" title="Resize sidebar">
+              👁️ {sidebarWidth}
+            </button>
+          </div>
+          <button onClick={() => setShowEndConfirm(true)} className="px-2.5 py-1 text-xs font-medium rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+            End
+          </button>
+        </div>
+
+        {/* Tabs with badges */}
         <div className="flex border-b border-lp-border">
           {(['chat', 'qa', 'polls'] as SidebarTab[]).map((tab, i) => {
             const badge = tab === 'chat' ? newChatCount : tab === 'qa' ? newQACount : 0;
@@ -314,55 +341,33 @@ export default function PresenterLivePage() {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`flex-1 py-2.5 text-sm font-semibold transition-colors relative ${
-                  activeTab === tab
-                    ? 'text-lp-accent border-b-2 border-lp-accent'
-                    : 'text-lp-muted hover:text-lp-text'
+                  activeTab === tab ? 'text-lp-accent border-b-2 border-lp-accent' : 'text-lp-muted hover:text-lp-text'
                 }`}
               >
                 {tab === 'chat' && 'Chat'}
                 {tab === 'qa' && 'Q&A'}
                 {tab === 'polls' && 'Polls'}
-
-                {/* Notification badge */}
                 {badge > 0 && (
                   <span className="absolute -top-0.5 right-1 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-bold bg-lp-pink text-white rounded-full animate-slide-in">
                     {badge > 99 ? '99+' : badge}
                   </span>
                 )}
-
                 <span className="ml-1 text-[10px] text-lp-muted">{i + 1}</span>
               </button>
             );
           })}
-          {/* Fullscreen toggle - separated */}
-          <button
-            onClick={() => setFullscreenTab(activeTab)}
-            className="px-3 text-lp-muted hover:text-lp-accent transition-colors border-l border-lp-border text-sm"
-            title="Fullscreen (F)"
-          >
-            ⛶
-          </button>
         </div>
 
         {/* Tab content */}
         <div className="flex-1 overflow-hidden presenter-panel">
-          {activeTab === 'chat' && (
-            <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact />
-          )}
-          {activeTab === 'qa' && (
-            <QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />
-          )}
+          {activeTab === 'chat' && <ChatPanel messages={chatMessages} sessionId={session.id} authorName={`${session.speaker_name} (Host)`} compact />}
+          {activeTab === 'qa' && <QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
           {activeTab === 'polls' && (
             <div className="p-3 space-y-3 overflow-y-auto h-full">
-              {/* Pulse Check */}
               <PulseCheck sessionId={session.id} isPresenter />
-
               <div className="border-t border-lp-border pt-3">
                 {!showPollCreator && (
-                  <button
-                    onClick={() => setShowPollCreator(true)}
-                    className="w-full py-3 border-2 border-dashed border-lp-border rounded-xl text-sm font-semibold text-lp-muted hover:border-lp-accent hover:text-lp-accent transition-colors mb-3"
-                  >
+                  <button onClick={() => setShowPollCreator(true)} className="w-full py-3 border-2 border-dashed border-lp-border rounded-xl text-sm font-semibold text-lp-muted hover:border-lp-accent hover:text-lp-accent transition-colors mb-3">
                     + Create Poll
                   </button>
                 )}
@@ -384,26 +389,23 @@ export default function PresenterLivePage() {
                       <span className="text-xs font-bold text-lp-green uppercase tracking-wider">Live</span>
                     </div>
                     <PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults />
-                    <button onClick={closePoll} className="w-full py-2 text-sm font-semibold text-red-400 hover:text-red-300 transition-colors">
-                      Close Poll
+                    <button onClick={closePoll} className="w-full py-2 text-sm font-semibold text-lp-orange hover:text-lp-orange/80 transition-colors">
+                      Pause Poll
                     </button>
                   </div>
                 )}
 
-                {/* Closed polls history */}
                 {closedPolls.length > 0 && (
                   <div className="mt-4 pt-3 border-t border-lp-border">
                     <h4 className="text-xs font-bold text-lp-muted uppercase tracking-wider mb-3">Past Polls ({closedPolls.length})</h4>
                     <div className="space-y-3">
                       {closedPolls.map((cp) => (
-                        <PollWidget
-                          key={cp.id}
-                          pollId={cp.id}
-                          question={cp.question}
-                          options={cp.options}
-                          showLiveResults
-                          isClosed
-                        />
+                        <div key={cp.id}>
+                          <PollWidget pollId={cp.id} question={cp.question} options={cp.options} showLiveResults isClosed />
+                          <button onClick={() => reopenPoll(cp.id)} className="w-full mt-1 py-1.5 text-xs font-semibold text-lp-accent hover:text-lp-accent/80 transition-colors">
+                            🔄 Reopen Poll
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -417,18 +419,8 @@ export default function PresenterLivePage() {
           )}
         </div>
 
-        {/* End session - at very bottom, separate from everything */}
-        <div className="px-4 py-2 border-t border-lp-border">
-          <button
-            onClick={endSession}
-            className="w-full py-2 text-xs font-semibold rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
-          >
-            End Session
-          </button>
-        </div>
-
-        {/* QR Code - always visible */}
-        <SidebarQR sessionCode={session.session_code} onlineCount={onlineCount} />
+        {/* QR Code */}
+        <SidebarQR sessionCode={session.session_code} />
       </div>
     </div>
   );

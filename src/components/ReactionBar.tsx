@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { createSupabaseBrowser } from '@/lib/supabase';
 import type { Reaction } from '@/lib/types';
 
-const EMOJIS = ['🔥', '👏', '❤️', '😂', '🎉', '💡', '👍', '🤯'];
+const EMOJIS = ['🔥', '👏', '❤️', '😂', '🎉', '💡', '👍', '🤯', '🤔', '❓'];
 
 interface FloatingEmoji {
   id: number;
