@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-lp-bg: #0a0a0f;
+  --color-lp-surface: #14141f;
+  --color-lp-surface-light: #1e1e2e;
+  --color-lp-accent: #6c5ce7;
+  --color-lp-accent-glow: rgba(108, 92, 231, 0.3);
+  --color-lp-green: #00d2a0;
+  --color-lp-pink: #ff6b9d;
+  --color-lp-orange: #ffa348;
+  --color-lp-yellow: #ffd43b;
+  --color-lp-text: #f0f0f5;
+  --color-lp-muted: #8888a0;
+  --color-lp-border: #2a2a3e;
+  --color-lp-chat: #111120;
+  --font-sans: 'DM Sans', sans-serif;
+}
+
+/* Base styles */
+body {
+  font-family: 'DM Sans', sans-serif;
+  background-color: #0a0a0f;
+  color: #f0f0f5;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a3e;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Floating emoji animation */
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) translateX(0) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-40vh) translateX(var(--drift)) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-80vh) translateX(var(--drift)) scale(0.8);
+  }
+}
+
+/* Slide in animation for chat messages */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pulse animation for online dot */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.animate-float-up {
+  animation: floatUp 1.8s ease-out forwards;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-pulse-dot {
+  animation: pulse 2s infinite;
+}
