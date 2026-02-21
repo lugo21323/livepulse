@@ -56,6 +56,7 @@ export default function PresenterLivePage() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [msgReactionCounts, setMsgReactionCounts] = useState<Record<string, number>>({});
+  const [msgReactionEmojis, setMsgReactionEmojis] = useState<Record<string, Record<string, number>>>({});
   const pollsContainerRef = useRef<HTMLDivElement>(null);
 
   const [lastSeenChat, setLastSeenChat] = useState(0);
@@ -202,8 +203,9 @@ export default function PresenterLivePage() {
     });
   }
 
-  function trackMsgReaction(id: string, count: number) {
+  function trackMsgReaction(id: string, count: number, emojis?: Record<string, number>) {
     setMsgReactionCounts((prev) => ({ ...prev, [id]: count }));
+    if (emojis) setMsgReactionEmojis((prev) => ({ ...prev, [id]: emojis }));
   }
 
   function archiveMessage(id: string) {
@@ -331,23 +333,31 @@ export default function PresenterLivePage() {
               .slice(0, 5);
             const feat = [...starred, ...topReacted];
             return (
-              <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                {feat.length === 0 ? (
-                  <p className="text-center text-lp-muted text-sm py-16">Star messages with ⭐ or react with emojis to feature them here</p>
-                ) : (
-                  feat.map((msg) => (
-                    <div key={msg.id} className="bg-lp-surface rounded-xl p-4 border border-lp-border animate-slide-in">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-lp-accent">{msg.author_name}</span>
-                        {starredIds.has(msg.id) && <span className="text-xs text-lp-yellow">⭐ Starred</span>}
-                        {!starredIds.has(msg.id) && msgReactionCounts[msg.id] && (
-                          <span className="text-xs text-lp-muted">{msgReactionCounts[msg.id]} reactions</span>
+              <div className="h-full overflow-y-auto flex justify-center p-6">
+                <div className="w-full max-w-2xl space-y-3">
+                  {feat.length === 0 ? (
+                    <p className="text-center text-lp-muted text-sm py-16">Star messages with ☆ or react with emojis to feature them here</p>
+                  ) : (
+                    feat.map((msg) => (
+                      <div key={msg.id} className="bg-lp-surface rounded-xl p-5 border border-lp-border animate-slide-in">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-semibold text-lp-accent">{msg.author_name}</span>
+                          {starredIds.has(msg.id) && <span className="text-xs text-lp-muted">★ Featured</span>}
+                        </div>
+                        <p className="text-lg text-lp-text leading-relaxed">{msg.content}</p>
+                        {msgReactionCounts[msg.id] > 0 && (
+                          <div className="mt-3 pt-2 border-t border-lp-border/50 flex items-center gap-2 flex-wrap">
+                            {msgReactionEmojis[msg.id] && Object.entries(msgReactionEmojis[msg.id]).map(([emoji, cnt]) => (
+                              <span key={emoji} className="inline-flex items-center gap-1 text-sm bg-lp-bg rounded-full px-2 py-0.5 border border-lp-border">
+                                {emoji} <span className="text-lp-muted text-xs font-medium">{cnt}</span>
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      <p className="text-base text-lp-text">{msg.content}</p>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             );
           })()}

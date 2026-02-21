@@ -17,7 +17,7 @@ interface ChatPanelProps {
   onArchive?: (id: string) => void;
   starredIds?: Set<string>;
   onStar?: (id: string) => void;
-  onMsgReaction?: (id: string, totalCount: number) => void;
+  onMsgReaction?: (id: string, totalCount: number, emojis?: Record<string, number>) => void;
 }
 
 interface MessageReactions {
@@ -27,6 +27,18 @@ interface MessageReactions {
 interface ThreadedMessage {
   msg: Message;
   replies: Message[];
+}
+
+// Reply format: @AuthorName|parentMsgId: content
+// We encode the parent message ID so threading works with multiple messages from the same author
+function parseReply(content: string): { targetName: string; parentId: string | null; replyText: string } | null {
+  // New format: @Name|id: text
+  const matchNew = content.match(/^@([^|]+)\|([^:]+):\s*([\s\S]*)/);
+  if (matchNew) return { targetName: matchNew[1], parentId: matchNew[2], replyText: matchNew[3] };
+  // Legacy format: @Name: text (no ID)
+  const matchOld = content.match(/^@([^:]+):\s*([\s\S]*)/);
+  if (matchOld) return { targetName: matchOld[1], parentId: null, replyText: matchOld[2] };
+  return null;
 }
 
 export default function ChatPanel({ messages, sessionId, authorName, compact = false, twoColumn = false, isPresenter = false, archivedIds, onArchive, starredIds, onStar, onMsgReaction }: ChatPanelProps) {
@@ -55,25 +67,31 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
     const result: ThreadedMessage[] = [];
     const replyIds = new Set<string>();
     const replyMap = new Map<string, Message[]>();
+    const msgById = new Map(messages.map((m) => [m.id, m]));
 
     for (const msg of messages) {
-      if (msg.content.startsWith('@')) {
-        const nameMatch = msg.content.match(/^@([^:]+):/);
-        if (nameMatch) {
-          const targetName = nameMatch[1];
-          let parentId: string | null = null;
-          for (let i = messages.indexOf(msg) - 1; i >= 0; i--) {
-            if (messages[i].author_name === targetName && !messages[i].content.startsWith('@')) {
-              parentId = messages[i].id;
-              break;
-            }
-          }
-          if (parentId) {
-            replyIds.add(msg.id);
-            if (!replyMap.has(parentId)) replyMap.set(parentId, []);
-            replyMap.get(parentId)!.push(msg);
+      const parsed = parseReply(msg.content);
+      if (!parsed) continue;
+
+      let parentId: string | null = null;
+
+      // If we have an explicit parent ID, use it
+      if (parsed.parentId && msgById.has(parsed.parentId)) {
+        parentId = parsed.parentId;
+      } else {
+        // Fallback: find most recent message from target author before this reply
+        for (let i = messages.indexOf(msg) - 1; i >= 0; i--) {
+          if (messages[i].author_name === parsed.targetName && !parseReply(messages[i].content)) {
+            parentId = messages[i].id;
+            break;
           }
         }
+      }
+
+      if (parentId) {
+        replyIds.add(msg.id);
+        if (!replyMap.has(parentId)) replyMap.set(parentId, []);
+        replyMap.get(parentId)!.push(msg);
       }
     }
 
@@ -107,7 +125,8 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   async function sendReply(msg: Message) {
     const content = replyText.trim();
     if (!content || sending) return;
-    const fullContent = `@${msg.author_name}: ${content}`;
+    // Encode parent message ID for accurate threading
+    const fullContent = `@${msg.author_name}|${msg.id}: ${content}`;
     setSending(true);
     setReplyText('');
     setReplyToId(null);
@@ -125,10 +144,10 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
       const msgReactions = { ...(prev[messageId] || {}) };
       msgReactions[emoji] = (msgReactions[emoji] || 0) + 1;
       const updated = { ...prev, [messageId]: msgReactions };
-      // Report total count to parent
       if (onMsgReaction) {
-        const total = Object.values(updated[messageId] || {}).reduce((s, c) => s + c, 0);
-        onMsgReaction(messageId, total);
+        const emojiMap = updated[messageId] || {};
+        const total = Object.values(emojiMap).reduce((s, c) => s + c, 0);
+        onMsgReaction(messageId, total, { ...emojiMap });
       }
       return updated;
     });
@@ -140,7 +159,8 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   }
 
   function renderReply(reply: Message) {
-    const replyContent = reply.content.replace(/^@[^:]+:\s*/, '');
+    const parsed = parseReply(reply.content);
+    const replyContent = parsed ? parsed.replyText : reply.content;
     return (
       <div key={reply.id} className="ml-4 mt-1 pl-3 border-l-2 border-lp-accent/30 animate-slide-in">
         <div className="rounded-lg px-2.5 py-1.5 bg-lp-accent/5">
@@ -156,15 +176,16 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
     const reactions = getReactionCount(msg.id);
     const hasReactions = Object.keys(reactions).length > 0;
     const isReplying = replyToId === msg.id;
-    const isReply = msg.content.startsWith('@');
+    const parsed = parseReply(msg.content);
+    const isReply = !!parsed;
     const isStarred = starredIds?.has(msg.id);
 
-    const displayContent = isReply ? msg.content.replace(/^@[^:]+:\s*/, '') : msg.content;
-    const replyTarget = isReply ? msg.content.match(/^@([^:]+):/)?.[1] : null;
+    const displayContent = isReply ? parsed!.replyText : msg.content;
+    const replyTarget = isReply ? parsed!.targetName : null;
 
     return (
       <div key={msg.id} className="animate-slide-in group">
-        <div className={`rounded-lg px-3 py-2 relative ${compact ? 'bg-lp-bg' : 'bg-lp-surface-light'} ${isStarred ? 'ring-1 ring-lp-yellow/30' : ''}`}>
+        <div className={`rounded-lg px-3 py-2 relative ${compact ? 'bg-lp-bg' : 'bg-lp-surface-light'} ${isStarred ? 'ring-1 ring-lp-accent/30' : ''}`}>
           {replyTarget && (
             <div className="text-[10px] text-lp-muted mb-0.5 flex items-center gap-1">
               <span>↩</span> replying to {replyTarget}
@@ -180,10 +201,10 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
               {isPresenter && onStar && (
                 <button
                   onClick={() => onStar(msg.id)}
-                  className={`text-sm p-1 rounded hover:bg-lp-bg/50 transition-all ${isStarred ? 'text-lp-yellow' : 'text-lp-muted/40 hover:text-lp-yellow'}`}
+                  className={`text-xs p-1 rounded hover:bg-lp-bg/50 transition-all ${isStarred ? 'text-lp-text' : 'text-lp-muted/40 hover:text-lp-muted'}`}
                   title={isStarred ? 'Unstar' : 'Star (feature)'}
                 >
-                  ⭐
+                  {isStarred ? '★' : '☆'}
                 </button>
               )}
               <button
@@ -203,10 +224,10 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
               {isPresenter && onArchive && (
                 <button
                   onClick={() => onArchive(msg.id)}
-                  className="text-sm text-lp-muted/40 hover:text-red-400 p-1 rounded hover:bg-lp-bg/50 transition-all"
+                  className="text-xs text-lp-muted/40 hover:text-red-400 p-1 rounded hover:bg-lp-bg/50 transition-all"
                   title="Archive message"
                 >
-                  ✕
+                  🗑
                 </button>
               )}
             </div>
