@@ -32,15 +32,20 @@ export default function PollWidget({ pollId, question, options, showLiveResults 
   async function vote(optionId: string) {
     if (voted || voting || isClosed) return;
     setVoting(true);
-    const supabase = createSupabaseBrowser();
-    const voterId = getVoterId();
-    const { data } = await supabase.rpc('cast_poll_vote', {
-      p_option_id: optionId,
-      p_voter_id: voterId,
-    });
-    if (data) {
-      setVoted(optionId);
-      localStorage.setItem(`lp_voted_${pollId}`, optionId);
+
+    // OPTIMISTIC: Show result immediately — don't wait for RPC
+    setVoted(optionId);
+    localStorage.setItem(`lp_voted_${pollId}`, optionId);
+
+    try {
+      const supabase = createSupabaseBrowser();
+      const voterId = getVoterId();
+      await supabase.rpc('cast_poll_vote', {
+        p_option_id: optionId,
+        p_voter_id: voterId,
+      });
+    } catch {
+      // Vote is already shown optimistically — keep it
     }
     setVoting(false);
   }

@@ -23,11 +23,13 @@ interface PendingResource {
 export default function CreateSessionPage() {
   const [title, setTitle] = useState('');
   const [speakerName, setSpeakerName] = useState('');
+  const [customCode, setCustomCode] = useState('');
   const [slideUrl, setSlideUrl] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
+  const [showImageHelp, setShowImageHelp] = useState(false);
 
   // Contact fields
   const [headshotUrl, setHeadshotUrl] = useState('');
@@ -60,6 +62,10 @@ export default function CreateSessionPage() {
   const slideProvider = slideUrl ? detectProvider(slideUrl) : null;
   const canPreview = slideUrl && slideProvider !== 'unknown' && toEmbedUrl(slideUrl);
 
+  // Validate custom code
+  const cleanCode = customCode.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  const codeValid = cleanCode.length === 0 || (cleanCode.length >= 3 && cleanCode.length <= 20);
+
   function addResource() {
     const n = newResName.trim();
     const u = newResUrl.trim();
@@ -80,7 +86,21 @@ export default function CreateSessionPage() {
     setError('');
     setCreating(true);
 
-    const sessionCode = generateSessionCode();
+    const sessionCode = cleanCode || generateSessionCode();
+
+    // If custom code, check uniqueness
+    if (cleanCode) {
+      const { data: existing } = await supabase
+        .from('sessions')
+        .select('id')
+        .eq('session_code', sessionCode)
+        .single();
+      if (existing) {
+        setError(`Code "${sessionCode}" is already in use. Choose a different one.`);
+        setCreating(false);
+        return;
+      }
+    }
 
     const { data: sessionData, error: dbError } = await supabase.from('sessions').insert({
       presenter_id: userId,
@@ -144,6 +164,27 @@ export default function CreateSessionPage() {
                 <input type="text" value={speakerName} onChange={(e) => setSpeakerName(e.target.value)} placeholder="e.g. Luke Puffingston" required maxLength={80} className={inputClass} />
               </div>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-lp-muted mb-1.5">
+                Custom Join Code <span className="font-normal text-lp-muted/60">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={customCode}
+                onChange={(e) => setCustomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
+                placeholder="e.g. KEYNOTE2026, AI-TALK (auto-generated if blank)"
+                maxLength={20}
+                className={inputClass}
+              />
+              {customCode && (
+                <p className={`text-xs mt-1.5 ${codeValid ? 'text-lp-green' : 'text-red-400'}`}>
+                  {codeValid ? `✓ Audience will join with code: ${cleanCode}` : '⚠ Code must be 3-20 characters (letters, numbers, hyphens)'}
+                </p>
+              )}
+              {!customCode && (
+                <p className="text-xs mt-1.5 text-lp-muted/60">Leave blank for a random 6-character code</p>
+              )}
+            </div>
           </div>
 
           {/* Slides */}
@@ -178,11 +219,31 @@ export default function CreateSessionPage() {
             <h2 className="text-sm font-bold text-lp-muted uppercase tracking-wider">👤 Contact Info <span className="font-normal normal-case">(visible to audience)</span></h2>
 
             <div>
-              <label className="block text-sm font-medium text-lp-muted mb-1.5">Headshot URL</label>
-              <input type="url" value={headshotUrl} onChange={(e) => setHeadshotUrl(e.target.value)} placeholder="https://your-photo.jpg (use LinkedIn, website, etc.)" className={inputClass} />
+              <div className="flex items-center gap-2 mb-1.5">
+                <label className="text-sm font-medium text-lp-muted">Headshot URL</label>
+                <button
+                  type="button"
+                  onClick={() => setShowImageHelp(!showImageHelp)}
+                  className="w-5 h-5 rounded-full bg-lp-accent/20 text-lp-accent text-[10px] font-bold flex items-center justify-center hover:bg-lp-accent/30 transition-colors"
+                  title="Image URL help"
+                >
+                  ?
+                </button>
+              </div>
+              {showImageHelp && (
+                <div className="mb-3 p-3 bg-lp-bg rounded-xl border border-lp-accent/30 text-xs text-lp-muted space-y-1.5">
+                  <p className="font-semibold text-lp-text">How to get an image URL:</p>
+                  <p>• <strong>Imgur</strong> — Upload at imgur.com, right-click image → Copy image address</p>
+                  <p>• <strong>LinkedIn</strong> — Right-click your profile photo → Copy image address</p>
+                  <p>• <strong>Google Drive</strong> — Upload, Share as "Anyone with link", use: <span className="text-lp-accent">https://drive.google.com/uc?id=YOUR_FILE_ID</span></p>
+                  <p>• <strong>Any website</strong> — Right-click a photo of you → Copy image address</p>
+                  <p className="text-red-400/80 pt-1">⚠ SharePoint/OneDrive files require login and won&apos;t work as image URLs</p>
+                </div>
+              )}
+              <input type="url" value={headshotUrl} onChange={(e) => setHeadshotUrl(e.target.value)} placeholder="https://your-photo.jpg" className={inputClass} />
               {headshotUrl && (
                 <div className="mt-3 flex items-center gap-3">
-                  <img src={headshotUrl} alt="Headshot preview" className="w-16 h-16 rounded-full object-cover border-2 border-lp-accent/30" onError={(e) => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).alt = 'Failed to load'; }} />
+                  <img src={headshotUrl} alt="Headshot preview" className="w-16 h-16 rounded-full object-cover border-2 border-lp-accent/30" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                   <span className="text-xs text-lp-green font-medium">✓ Preview</span>
                 </div>
               )}
@@ -253,7 +314,7 @@ export default function CreateSessionPage() {
 
           <button
             type="submit"
-            disabled={!title.trim() || !speakerName.trim() || creating}
+            disabled={!title.trim() || !speakerName.trim() || creating || !codeValid}
             className="w-full py-3 bg-gradient-to-r from-lp-accent to-lp-pink rounded-xl text-sm font-semibold text-white disabled:opacity-40 hover:opacity-90 active:scale-[0.98] transition-all shadow-[0_4px_20px_rgba(108,92,231,0.3)]"
           >
             {creating ? 'Creating...' : 'Create Session'}

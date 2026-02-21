@@ -244,7 +244,13 @@ export default function PresenterLivePage() {
 
       {/* Fullscreen QR overlay */}
       {fullscreenQR && (
-        <div className="fixed inset-0 z-50 bg-lp-bg flex flex-col items-center justify-center cursor-pointer" onClick={() => setFullscreenQR(false)}>
+        <div className="fixed inset-0 z-50 bg-lp-bg flex flex-col items-center justify-center">
+          <button
+            onClick={() => setFullscreenQR(false)}
+            className="absolute top-4 right-4 px-4 py-2 text-sm text-lp-muted hover:text-lp-text bg-lp-surface rounded-lg border border-lp-border transition-colors"
+          >
+            ✕ Close <span className="text-xs text-lp-muted ml-1">(Esc)</span>
+          </button>
           <div className="text-center mb-8">
             <h1 className="text-4xl font-extrabold text-lp-text mb-2">{session.title}</h1>
             <p className="text-xl text-lp-muted font-medium">{session.speaker_name}</p>
@@ -256,7 +262,6 @@ export default function PresenterLivePage() {
             <span className="text-lg text-lp-muted font-medium">Join code:</span>
             <span className="text-4xl font-extrabold tracking-[0.25em] text-lp-accent">{session.session_code}</span>
           </div>
-          <p className="mt-8 text-sm text-lp-muted">Click anywhere to close</p>
         </div>
       )}
 
