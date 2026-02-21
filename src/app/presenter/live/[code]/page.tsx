@@ -365,11 +365,14 @@ export default function PresenterLivePage() {
           })()}
           qaContent={<QAPanel sessionId={session.id} authorName={`${session.speaker_name} (Host)`} messages={messages} />}
           pollContent={
-            activePoll ? (
-              <PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults />
-            ) : (
-              <div className="flex items-center justify-center h-full text-lp-muted text-sm">No active poll</div>
-            )
+            <div className="space-y-4">
+              <PulseCheck sessionId={session.id} isPresenter />
+              {activePoll ? (
+                <PollWidget pollId={activePoll.id} question={(activePoll as any).question} options={pollOptions} showLiveResults />
+              ) : (
+                <p className="text-center text-lp-muted text-sm py-4">No active poll</p>
+              )}
+            </div>
           }
           archivedCount={archivedIds.size}
           showArchived={showArchived}

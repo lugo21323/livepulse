@@ -9,6 +9,7 @@ interface ScreenCaptureProps {
 
 export default function ScreenCapture({ className = '', onStop }: ScreenCaptureProps) {
   const [capturing, setCapturing] = useState(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -28,21 +29,17 @@ export default function ScreenCapture({ className = '', onStop }: ScreenCaptureP
 
       // Handle user clicking "Stop sharing" in the browser bar
       stream.getVideoTracks()[0].onended = () => {
-        stopCapture();
+        doStop();
       };
 
-      // Set capturing to true — useEffect above will wire the stream to the video
       setCapturing(true);
     } catch (err: any) {
-      if (err.name === 'NotAllowedError') {
-        // User cancelled the picker — not an error
-        return;
-      }
+      if (err.name === 'NotAllowedError') return;
       setError('Screen sharing failed. Make sure you\'re using a supported browser.');
     }
   }, []);
 
-  const stopCapture = useCallback(() => {
+  const doStop = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -51,6 +48,7 @@ export default function ScreenCapture({ className = '', onStop }: ScreenCaptureP
       videoRef.current.srcObject = null;
     }
     setCapturing(false);
+    setShowStopConfirm(false);
     onStop?.();
   }, [onStop]);
 
@@ -94,11 +92,30 @@ export default function ScreenCapture({ className = '', onStop }: ScreenCaptureP
         className="w-full h-full object-contain"
       />
       <button
-        onClick={stopCapture}
+        onClick={() => setShowStopConfirm(true)}
         className="absolute top-3 right-3 z-20 px-3 py-1.5 bg-red-500/90 hover:bg-red-500 text-white text-xs font-bold rounded-lg backdrop-blur-sm transition-colors"
       >
         Stop Sharing
       </button>
+
+      {/* Confirmation dialog */}
+      {showStopConfirm && (
+        <div className="absolute inset-0 z-30 bg-black/70 backdrop-blur-sm flex items-center justify-center" onClick={() => setShowStopConfirm(false)}>
+          <div className="bg-lp-surface border border-lp-border rounded-2xl p-6 max-w-sm w-full mx-4 text-center" onClick={(e) => e.stopPropagation()}>
+            <p className="text-3xl mb-3">🖥️</p>
+            <h3 className="text-lg font-bold mb-2">Stop Screen Share?</h3>
+            <p className="text-sm text-lp-muted mb-6">This will end your current screen share. You can start a new one anytime.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowStopConfirm(false)} className="flex-1 py-2.5 text-sm font-semibold rounded-lg border border-lp-border text-lp-muted hover:text-lp-text transition-colors">
+                Keep Sharing
+              </button>
+              <button onClick={doStop} className="flex-1 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors">
+                Stop
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

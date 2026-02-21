@@ -55,6 +55,32 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   const replyInputRef = useRef<HTMLInputElement>(null);
   const supabase = useRef(createSupabaseBrowser()).current;
   const lockedToBottom = useRef(true); // start locked
+  const channelRef = useRef<any>(null);
+
+  // Subscribe to broadcast channel for cross-client emoji reactions
+  useEffect(() => {
+    const channel = supabase
+      .channel(`msg-reactions:${sessionId}`, { config: { broadcast: { self: true } } })
+      .on('broadcast', { event: 'reaction' }, (payload: any) => {
+        const { messageId, emoji } = payload.payload;
+        if (messageId && emoji) {
+          setLocalReactions((prev) => {
+            const msgReactions = { ...(prev[messageId] || {}) };
+            msgReactions[emoji] = (msgReactions[emoji] || 0) + 1;
+            const updated = { ...prev, [messageId]: msgReactions };
+            if (onMsgReaction) {
+              const emojiMap = updated[messageId] || {};
+              const total = Object.values(emojiMap).reduce((s, c) => s + c, 0);
+              onMsgReaction(messageId, total, { ...emojiMap });
+            }
+            return updated;
+          });
+        }
+      })
+      .subscribe();
+    channelRef.current = channel;
+    return () => { supabase.removeChannel(channel); };
+  }, [sessionId, supabase, onMsgReaction]);
 
   // Auto-scroll when new messages arrive IF locked to bottom
   useEffect(() => {
@@ -162,16 +188,11 @@ export default function ChatPanel({ messages, sessionId, authorName, compact = f
   }
 
   function reactToMessage(messageId: string, emoji: string) {
-    setLocalReactions((prev) => {
-      const msgReactions = { ...(prev[messageId] || {}) };
-      msgReactions[emoji] = (msgReactions[emoji] || 0) + 1;
-      const updated = { ...prev, [messageId]: msgReactions };
-      if (onMsgReaction) {
-        const emojiMap = updated[messageId] || {};
-        const total = Object.values(emojiMap).reduce((s, c) => s + c, 0);
-        onMsgReaction(messageId, total, { ...emojiMap });
-      }
-      return updated;
+    // Broadcast to all clients — the subscription listener updates local state
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'reaction',
+      payload: { messageId, emoji },
     });
     setShowReactionsFor(null);
   }
