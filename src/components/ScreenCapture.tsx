@@ -13,20 +13,26 @@ export default function ScreenCapture({ className = '', onStop }: ScreenCaptureP
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // Wire stream to video element after it mounts
+  useEffect(() => {
+    if (capturing && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [capturing]);
+
   const startCapture = useCallback(async () => {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setCapturing(true);
 
       // Handle user clicking "Stop sharing" in the browser bar
       stream.getVideoTracks()[0].onended = () => {
         stopCapture();
       };
+
+      // Set capturing to true — useEffect above will wire the stream to the video
+      setCapturing(true);
     } catch (err: any) {
       if (err.name === 'NotAllowedError') {
         // User cancelled the picker — not an error
